@@ -1,5 +1,30 @@
+# Build results
 bin/
 obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Environment variables and secrets
+.env
+*.env.local
+
+# Visual Studio
+.vs/
+*.userprefs
+
+# Rider
+.idea/
+
+# Database files
+*.mdf
+*.ldf
+
+# User secrets
+**/secrets.json
