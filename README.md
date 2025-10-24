@@ -17,6 +17,8 @@ This project is designed as a teaching tool for students learning database progr
 
 ## 🚀 Quick Start
 
+**⚡ Want to get started fast?** See [`QUICKSTART.md`](QUICKSTART.md) for a 5-minute setup guide!
+
 ### Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) installed
@@ -24,26 +26,28 @@ This project is designed as a teaching tool for students learning database progr
 
 ### Setup Steps
 
-1. **Clone the repository** (or if you're already here, skip this)
-
-2. **Configure database password**:
+1. **Start SQL Server**:
    ```bash
-   cp .env.example .env
-   # Edit .env and set a strong password
+   cp .env.example .env  # Edit with your SA password
+   docker compose up -d
    ```
 
-3. **Start SQL Server**:
+2. **Configure application secrets**:
    ```bash
-   docker-compose up -d
+   cd DbDemo
+   dotnet user-secrets set "ConnectionStrings:SqlServerAdmin" "Server=localhost,1453;User Id=sa;Password=YOUR_PASSWORD;TrustServerCertificate=True;"
+   dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;"
    ```
 
-4. **Verify SQL Server is running**:
+3. **Run the application**:
    ```bash
-   docker-compose ps
+   dotnet run
    ```
 
-5. **Refer to detailed documentation**:
+4. **Refer to detailed documentation**:
+   - See [`QUICKSTART.md`](QUICKSTART.md) for step-by-step commands
    - See `docs/00-docker-setup.md` for complete Docker setup guide
+   - See `docs/01-project-setup.md` for configuration and security details
    - See `SETUP-DOCKER-INIT.md` for application user setup (security best practices)
 
 ## 📚 Learning Path
