@@ -41,14 +41,11 @@ This project is designed as a teaching tool for students learning database progr
 
 3. **Run the application**:
    ```bash
-   dotnet run
+   dotnet run --project src/DbDemo.ConsoleApp
    ```
 
 4. **Refer to detailed documentation**:
-   - See [`QUICKSTART.md`](QUICKSTART.md) for step-by-step commands
-   - See `docs/00-docker-setup.md` for complete Docker setup guide
-   - See `docs/01-project-setup.md` for configuration and security details
-   - See `SETUP-DOCKER-INIT.md` for application user setup (security best practices)
+   - See `docs/xx-....md` for docs per project part (you can check individual commits)
 
 ## 📚 Learning Path
 
@@ -76,10 +73,6 @@ Each commit is documented in the `docs/` folder with detailed explanations, exam
 ## 📖 Documentation Structure
 
 All documentation is in the `docs/` folder:
-
-- **`00-docker-setup.md`** - Complete Docker and SQL Server setup guide
-- **`01-project-setup.md`** - .NET project initialization
-- **More docs** will be added as we progress through commits
 
 Each document includes:
 - 📖 What You'll Learn
@@ -140,7 +133,7 @@ Key starting points:
 
 ### As a Student
 
-1. Start from Commit 1 and read the corresponding documentation
+1. Start with first commit and read the corresponding documentation
 2. Review the code changes in each commit
 3. Try the "Discussion Questions" at the end of each doc
 4. Experiment with the code yourself
@@ -162,8 +155,3 @@ This is an educational project. If you find issues or have suggestions for impro
 
 This project is created for educational purposes.
 
----
-
-**Happy Learning! 🚀**
-
-For questions or issues, refer to the detailed documentation in the `docs/` folder.
