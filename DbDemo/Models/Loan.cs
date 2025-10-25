@@ -88,9 +88,11 @@ public class Loan
         if (ReturnedAt.HasValue)
             throw new InvalidOperationException("Loan has already been returned");
 
+        // Check if overdue BEFORE setting ReturnedAt
+        var wasOverdue = IsOverdue;
         ReturnedAt = DateTime.UtcNow;
 
-        if (IsOverdue)
+        if (wasOverdue)
         {
             Status = LoanStatus.ReturnedLate;
             LateFee = CalculateLateFee();
