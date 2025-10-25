@@ -182,13 +182,14 @@ Examples:
 - ✅ PayLateFee functionality
 - ✅ ToString formatting for different states
 
-### BookAuthorTests (8 tests)
+### BookAuthorTests (9 tests)
 - ✅ Constructor with valid data
+- ✅ Constructor with role
 - ✅ UpdateOrder with validation
 - ✅ UpdateRole behavior
-- ✅ ToString formatting
+- ✅ ToString formatting (with and without role)
 
-**Total: 119 unit tests** covering all domain logic!
+**Total: 140 unit tests** covering all domain logic!
 
 ## 🧪 Running The Tests
 
@@ -224,7 +225,7 @@ dotnet test --collect:"XPlat Code Coverage"
 Starting test execution, please wait...
 A total of 1 test files matched the specified pattern.
 
-Passed!  - Failed:     0, Passed:   119, Skipped:     0, Total:   119, Duration: 245 ms
+Passed!  - Failed:     0, Passed:   140, Skipped:     0, Total:   140, Duration: 722 ms
 ```
 
 ## 💡 Example Walkthrough
@@ -499,7 +500,7 @@ public void Constructor_WithValidISBN_CreatesBook(string isbn) { ... }
 ## 🎯 Test Coverage Goals
 
 **What we've achieved**:
-- ✅ 119 unit tests covering all domain entities
+- ✅ 140 unit tests covering all domain entities
 - ✅ Constructor validation tested
 - ✅ All behavior methods tested
 - ✅ Computed properties verified
@@ -507,7 +508,7 @@ public void Constructor_WithValidISBN_CreatesBook(string isbn) { ... }
 - ✅ Edge cases covered
 
 **Metrics**:
-- **Fast**: All 119 tests run in ~250ms
+- **Fast**: All 140 tests run in ~722ms
 - **Isolated**: No database or external dependencies
 - **Maintainable**: Clear naming and AAA structure
 - **Comprehensive**: All public methods and properties tested
