@@ -59,3 +59,45 @@ GRANT VIEW DEFINITION TO library_app_user;
 PRINT '✅ Application user setup completed!';
 PRINT 'Connection: Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;';
 GO
+
+-- =============================================
+-- Create Migration History Table
+-- =============================================
+-- This table tracks all applied migrations
+-- Used by MigrationRunner to prevent re-running migrations
+-- and to detect tampering via checksum validation
+-- =============================================
+
+USE LibraryDb;
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[__MigrationsHistory]') AND type = 'U')
+BEGIN
+    CREATE TABLE [dbo].[__MigrationsHistory]
+    (
+        [MigrationVersion] VARCHAR(10) NOT NULL,      -- e.g., "001", "002", "003"
+        [FileName] NVARCHAR(255) NOT NULL,            -- e.g., "V001__initial_schema.sql"
+        [Checksum] VARCHAR(64) NOT NULL,              -- SHA256 hash for tamper detection
+        [AppliedAt] DATETIME2(7) NOT NULL,            -- When migration was applied
+        [ExecutionTimeMs] INT NOT NULL,               -- How long it took to execute
+
+        CONSTRAINT [PK_MigrationsHistory] PRIMARY KEY CLUSTERED ([MigrationVersion] ASC)
+    );
+
+    PRINT '✅ Table [__MigrationsHistory] created successfully.';
+END
+ELSE
+BEGIN
+    PRINT 'ℹ️  Table [__MigrationsHistory] already exists.';
+END
+GO
+
+PRINT '';
+PRINT '========================================';
+PRINT '✅ Database Initialization Complete!';
+PRINT '========================================';
+PRINT 'Database: LibraryDb';
+PRINT 'User: library_app_user';
+PRINT 'Migration tracking: __MigrationsHistory table ready';
+PRINT '========================================';
+GO

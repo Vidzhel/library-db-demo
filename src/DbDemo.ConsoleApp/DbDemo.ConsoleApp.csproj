@@ -29,4 +29,13 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- Copy migration files to output directory -->
+        <!-- We use the actual migration files from the repository -->
+        <Content Include="../../migrations/V00*.sql" Exclude="../../migrations/V000*.sql">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <TargetPath>migrations/%(Filename)%(Extension)</TargetPath>
+        </Content>
+    </ItemGroup>
+
 </Project>

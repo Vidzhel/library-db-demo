@@ -1,3 +1,4 @@
+using DbDemo.ConsoleApp.Infrastructure.Migrations;
 using Microsoft.Extensions.Configuration;
 
 namespace DbDemo.ConsoleApp.ConsoleApp;
@@ -10,7 +11,7 @@ internal class Program
 {
     private static IConfiguration? _configuration;
 
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
         Console.WriteLine("===========================================");
         Console.WriteLine("Library Management System - ADO.NET Demo");
@@ -23,9 +24,17 @@ internal class Program
         // Display configuration information
         DisplayConfigurationInfo();
 
+        // Run database migrations
+        await RunMigrationsAsync();
+
         Console.WriteLine();
-        Console.WriteLine("Press any key to exit...");
-        Console.ReadKey();
+
+        // Only wait for keypress if running interactively
+        if (args.Length == 0 || !args.Contains("--no-wait"))
+        {
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
+        }
     }
 
     /// <summary>
@@ -142,4 +151,47 @@ internal class Program
     /// </summary>
     public static IConfiguration Configuration => _configuration
         ?? throw new InvalidOperationException("Configuration not loaded. Call LoadConfiguration() first.");
+
+    /// <summary>
+    /// Runs database migrations using the MigrationRunner
+    /// </summary>
+    private static async Task RunMigrationsAsync()
+    {
+        if (_configuration == null)
+        {
+            Console.WriteLine("❌ Configuration not loaded - cannot run migrations!");
+            return;
+        }
+
+        try
+        {
+            // Get admin connection string (SA user) - required for running migrations
+            var adminConnectionString = _configuration.GetConnectionString("SqlServerAdmin");
+
+            if (string.IsNullOrEmpty(adminConnectionString))
+            {
+                Console.WriteLine("⚠️  No admin connection string configured - skipping migrations");
+                Console.WriteLine("   Set ConnectionStrings:SqlServerAdmin in appsettings.json or user secrets");
+                return;
+            }
+
+            // Get migrations path from configuration
+            var migrationsPath = _configuration["Database:MigrationsPath"] ?? "../../../../migrations";
+
+            // Create and run migration runner
+            var runner = new MigrationRunner(adminConnectionString, migrationsPath);
+            var executedCount = await runner.RunMigrationsAsync();
+
+            if (executedCount > 0)
+            {
+                Console.WriteLine($"✅ Database schema is now up to date!");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Migration error: {ex.Message}");
+            Console.WriteLine("⚠️  Application will continue, but database may be in an inconsistent state.");
+            Console.WriteLine();
+        }
+    }
 }
