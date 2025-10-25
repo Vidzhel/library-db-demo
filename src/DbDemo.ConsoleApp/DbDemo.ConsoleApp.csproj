@@ -21,12 +21,10 @@
 
     <ItemGroup>
         <!-- Copy appsettings files to output directory -->
-        <None Update="appsettings.json">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
         <None Update="appsettings.Development.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Remove="appsettings.json" />
     </ItemGroup>
 
     <ItemGroup>

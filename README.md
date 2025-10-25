@@ -47,6 +47,16 @@ This project is designed as a teaching tool for students learning database progr
 4. **Refer to detailed documentation**:
    - See `docs/xx-....md` for docs per project part (you can check individual commits)
 
+### Run tests
+
+```bash
+cd tests/DbDemo.Domain.Tests && dotnet test
+```
+
+```bash
+cd tests/DbDemo.Integration.Tests && dotnet test
+```
+
 ## 📚 Learning Path
 
 This project is organized as a series of commits, each teaching a specific concept:

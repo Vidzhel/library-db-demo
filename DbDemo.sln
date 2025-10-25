@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo.ConsoleApp", "src\Db
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo.Domain.Tests", "tests\DbDemo.Domain.Tests\DbDemo.Domain.Tests.csproj", "{A1234567-89AB-CDEF-0123-456789ABCDEF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo.Integration.Tests", "tests\DbDemo.Integration.Tests\DbDemo.Integration.Tests.csproj", "{C1234567-89AB-CDEF-0123-456789ABCDEF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
