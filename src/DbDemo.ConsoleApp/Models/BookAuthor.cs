@@ -1,4 +1,4 @@
-namespace DbDemo.Models;
+namespace DbDemo.ConsoleApp.Models;
 
 /// <summary>
 /// Represents the relationship between Books and Authors.

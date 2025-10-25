@@ -1,4 +1,4 @@
-using DbDemo.Models;
+using DbDemo.ConsoleApp.Models;
 using FluentAssertions;
 using Xunit;
 

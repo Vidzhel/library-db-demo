@@ -1,6 +1,6 @@
 
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo", "DbDemo\DbDemo.csproj", "{B8632986-B105-4319-AB90-22DCDC718C26}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo.ConsoleApp", "src\DbDemo.ConsoleApp\DbDemo.ConsoleApp.csproj", "{B8632986-B105-4319-AB90-22DCDC718C26}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo.Domain.Tests", "tests\DbDemo.Domain.Tests\DbDemo.Domain.Tests.csproj", "{A1234567-89AB-CDEF-0123-456789ABCDEF}"
 EndProject

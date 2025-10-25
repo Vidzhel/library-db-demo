@@ -6,6 +6,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <UserSecretsId>dbdemo-library-app-2024</UserSecretsId>
+        <AssemblyName>DbDemo.ConsoleApp</AssemblyName>
+        <RootNamespace>DbDemo.ConsoleApp</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>

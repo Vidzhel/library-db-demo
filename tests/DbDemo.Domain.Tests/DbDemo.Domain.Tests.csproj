@@ -29,7 +29,7 @@
 
     <ItemGroup>
         <!-- Reference to the main project -->
-        <ProjectReference Include="..\..\DbDemo\DbDemo.csproj" />
+        <ProjectReference Include="..\..\src\DbDemo.ConsoleApp\DbDemo.ConsoleApp.csproj" />
     </ItemGroup>
 
 </Project>

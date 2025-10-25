@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace DbDemo;
+namespace DbDemo.ConsoleApp.ConsoleApp;
 
 /// <summary>
 /// Library Management System - ADO.NET Demo Application

@@ -1,4 +1,4 @@
-namespace DbDemo.Models;
+namespace DbDemo.ConsoleApp.Models;
 
 public class Book
 {
