@@ -1,4 +1,6 @@
 using DbDemo.ConsoleApp.Infrastructure.Migrations;
+using DbDemo.ConsoleApp.Infrastructure.Repositories;
+using DbDemo.ConsoleApp.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace DbDemo.ConsoleApp.ConsoleApp;
@@ -10,6 +12,7 @@ namespace DbDemo.ConsoleApp.ConsoleApp;
 internal class Program
 {
     private static IConfiguration? _configuration;
+    private static IBookRepository? _bookRepository;
 
     static async Task Main(string[] args)
     {
@@ -29,11 +32,13 @@ internal class Program
 
         Console.WriteLine();
 
-        // Only wait for keypress if running interactively
+        // Initialize repository
+        InitializeRepository();
+
+        // Run interactive menu (unless --no-wait specified)
         if (args.Length == 0 || !args.Contains("--no-wait"))
         {
-            Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();
+            await RunInteractiveMenuAsync();
         }
     }
 
@@ -48,8 +53,32 @@ internal class Program
     {
         var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Development";
 
+        // Determine the base path for configuration files
+        // When running with 'dotnet run', working directory is the project directory
+        // When running the compiled executable, working directory is the bin directory
+        var basePath = Directory.GetCurrentDirectory();
+
+        // If appsettings.json doesn't exist in current directory, look in the repository root
+        if (!File.Exists(Path.Combine(basePath, "appsettings.json")))
+        {
+            // Try going up to find the repository root (where appsettings.json should be)
+            var repoRoot = basePath;
+            for (int i = 0; i < 5; i++) // Try up to 5 levels up
+            {
+                var parentDir = Directory.GetParent(repoRoot);
+                if (parentDir == null) break;
+
+                repoRoot = parentDir.FullName;
+                if (File.Exists(Path.Combine(repoRoot, "appsettings.json")))
+                {
+                    basePath = repoRoot;
+                    break;
+                }
+            }
+        }
+
         _configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(basePath)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: true)
             .AddUserSecrets<Program>(optional: true)  // Development secrets (not committed to git)
@@ -194,4 +223,567 @@ internal class Program
             Console.WriteLine();
         }
     }
+
+    /// <summary>
+    /// Initializes the repository with the application connection string
+    /// </summary>
+    private static void InitializeRepository()
+    {
+        if (_configuration == null)
+        {
+            Console.WriteLine("❌ Configuration not loaded - cannot initialize repository!");
+            return;
+        }
+
+        try
+        {
+            var appConnectionString = _configuration.GetConnectionString("LibraryDb");
+
+            if (string.IsNullOrEmpty(appConnectionString))
+            {
+                Console.WriteLine("⚠️  No application connection string configured!");
+                Console.WriteLine("   Set ConnectionStrings:LibraryDb in appsettings.json or user secrets");
+                return;
+            }
+
+            _bookRepository = new BookRepository(appConnectionString);
+            Console.WriteLine("✅ Book repository initialized");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Repository initialization error: {ex.Message}");
+        }
+    }
+
+    #region Interactive Menu
+
+    /// <summary>
+    /// Runs the interactive menu loop
+    /// </summary>
+    private static async Task RunInteractiveMenuAsync()
+    {
+        if (_bookRepository == null)
+        {
+            Console.WriteLine("❌ Repository not initialized - cannot run interactive menu");
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
+            return;
+        }
+
+        var running = true;
+
+        while (running)
+        {
+            try
+            {
+                DisplayMainMenu();
+                var choice = GetUserChoice();
+
+                Console.WriteLine();
+
+                switch (choice)
+                {
+                    case 1:
+                        await ListBooksAsync();
+                        break;
+                    case 2:
+                        await AddBookAsync();
+                        break;
+                    case 3:
+                        await ViewBookDetailsAsync();
+                        break;
+                    case 4:
+                        await UpdateBookAsync();
+                        break;
+                    case 5:
+                        await DeleteBookAsync();
+                        break;
+                    case 6:
+                        await SearchBooksAsync();
+                        break;
+                    case 0:
+                        Console.WriteLine("Thank you for using the Library Management System!");
+                        running = false;
+                        break;
+                    default:
+                        Console.WriteLine("❌ Invalid choice. Please try again.");
+                        break;
+                }
+
+                if (running && choice != 0)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Press any key to continue...");
+                    Console.ReadKey();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ An error occurred: {ex.Message}");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey();
+            }
+
+            Console.WriteLine();
+        }
+    }
+
+    /// <summary>
+    /// Displays the main menu
+    /// </summary>
+    private static void DisplayMainMenu()
+    {
+        Console.Clear();
+        Console.WriteLine("╔════════════════════════════════════════╗");
+        Console.WriteLine("║      LIBRARY MANAGEMENT SYSTEM         ║");
+        Console.WriteLine("║           Book Management              ║");
+        Console.WriteLine("╚════════════════════════════════════════╝");
+        Console.WriteLine();
+        Console.WriteLine("1. List All Books");
+        Console.WriteLine("2. Add New Book");
+        Console.WriteLine("3. View Book Details");
+        Console.WriteLine("4. Update Book");
+        Console.WriteLine("5. Delete Book");
+        Console.WriteLine("6. Search Books by Title");
+        Console.WriteLine("0. Exit");
+        Console.WriteLine();
+        Console.Write("Enter your choice: ");
+    }
+
+    /// <summary>
+    /// Gets and validates user menu choice
+    /// </summary>
+    private static int GetUserChoice()
+    {
+        var input = Console.ReadLine();
+        return int.TryParse(input, out var choice) ? choice : -1;
+    }
+
+    #endregion
+
+    #region Book CRUD Operations
+
+    /// <summary>
+    /// Lists all books with pagination
+    /// </summary>
+    private static async Task ListBooksAsync()
+    {
+        Console.WriteLine("📚 Book List");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+
+        try
+        {
+            var pageNumber = 1;
+            var pageSize = 10;
+
+            var books = await _bookRepository!.GetPagedAsync(pageNumber, pageSize);
+            var totalCount = await _bookRepository.GetCountAsync();
+
+            if (books.Count == 0)
+            {
+                Console.WriteLine("No books found in the library.");
+                return;
+            }
+
+            Console.WriteLine($"Showing {books.Count} of {totalCount} books (Page {pageNumber})");
+            Console.WriteLine();
+
+            foreach (var book in books)
+            {
+                DisplayBookSummary(book);
+            }
+
+            Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+            Console.WriteLine($"Total: {totalCount} books");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error listing books: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Adds a new book to the library
+    /// </summary>
+    private static async Task AddBookAsync()
+    {
+        Console.WriteLine("➕ Add New Book");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+
+        try
+        {
+            // Collect book information
+            var isbn = PromptForString("ISBN (10 or 13 digits, may include dashes)");
+            var title = PromptForString("Title");
+            var categoryId = PromptForInt("Category ID");
+            var totalCopies = PromptForInt("Total Copies");
+
+            // Optional fields
+            Console.WriteLine();
+            Console.WriteLine("Optional information (press Enter to skip):");
+            var subtitle = PromptForOptionalString("Subtitle");
+            var description = PromptForOptionalString("Description");
+            var publisher = PromptForOptionalString("Publisher");
+            var pageCount = PromptForOptionalInt("Page Count");
+            var language = PromptForOptionalString("Language");
+            var shelfLocation = PromptForOptionalString("Shelf Location");
+
+            DateTime? publishedDate = null;
+            Console.Write("Published Date (yyyy-MM-dd, or Enter to skip): ");
+            var dateInput = Console.ReadLine();
+            if (!string.IsNullOrWhiteSpace(dateInput) && DateTime.TryParse(dateInput, out var parsedDate))
+            {
+                publishedDate = parsedDate;
+            }
+
+            // Create the book
+            var book = new Book(isbn, title, categoryId, totalCopies);
+
+            // Update optional details if provided
+            if (!string.IsNullOrWhiteSpace(subtitle) || !string.IsNullOrWhiteSpace(description) || !string.IsNullOrWhiteSpace(publisher))
+            {
+                book.UpdateDetails(title, subtitle, description, publisher);
+            }
+
+            if (publishedDate.HasValue || pageCount.HasValue || !string.IsNullOrWhiteSpace(language))
+            {
+                book.UpdatePublishingInfo(publishedDate, pageCount, language);
+            }
+
+            if (!string.IsNullOrWhiteSpace(shelfLocation))
+            {
+                book.UpdateShelfLocation(shelfLocation);
+            }
+
+            // Save to database
+            var created = await _bookRepository!.CreateAsync(book);
+
+            Console.WriteLine();
+            Console.WriteLine("✅ Book added successfully!");
+            Console.WriteLine();
+            DisplayBookDetails(created);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error adding book: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Views detailed information about a specific book
+    /// </summary>
+    private static async Task ViewBookDetailsAsync()
+    {
+        Console.WriteLine("🔍 View Book Details");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+
+        try
+        {
+            var id = PromptForInt("Enter Book ID");
+
+            var book = await _bookRepository!.GetByIdAsync(id);
+
+            if (book == null)
+            {
+                Console.WriteLine($"❌ Book with ID {id} not found.");
+                return;
+            }
+
+            Console.WriteLine();
+            DisplayBookDetails(book);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error retrieving book: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Updates an existing book's information
+    /// </summary>
+    private static async Task UpdateBookAsync()
+    {
+        Console.WriteLine("✏️  Update Book");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+
+        try
+        {
+            var id = PromptForInt("Enter Book ID to update");
+
+            var book = await _bookRepository!.GetByIdAsync(id);
+
+            if (book == null)
+            {
+                Console.WriteLine($"❌ Book with ID {id} not found.");
+                return;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Current book information:");
+            DisplayBookDetails(book);
+
+            Console.WriteLine();
+            Console.WriteLine("Enter new values (press Enter to keep current value):");
+
+            var title = PromptForOptionalString($"Title [{book.Title}]");
+            var subtitle = PromptForOptionalString($"Subtitle [{book.Subtitle ?? "none"}]");
+            var description = PromptForOptionalString($"Description [{book.Description ?? "none"}]");
+            var publisher = PromptForOptionalString($"Publisher [{book.Publisher ?? "none"}]");
+
+            // Update the book
+            book.UpdateDetails(
+                string.IsNullOrWhiteSpace(title) ? book.Title : title,
+                string.IsNullOrWhiteSpace(subtitle) ? book.Subtitle : subtitle,
+                string.IsNullOrWhiteSpace(description) ? book.Description : description,
+                string.IsNullOrWhiteSpace(publisher) ? book.Publisher : publisher
+            );
+
+            var updated = await _bookRepository.UpdateAsync(book);
+
+            if (updated)
+            {
+                Console.WriteLine();
+                Console.WriteLine("✅ Book updated successfully!");
+                Console.WriteLine();
+
+                // Fetch and display updated book
+                var refreshedBook = await _bookRepository.GetByIdAsync(id);
+                if (refreshedBook != null)
+                {
+                    DisplayBookDetails(refreshedBook);
+                }
+            }
+            else
+            {
+                Console.WriteLine("❌ Failed to update book.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error updating book: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Deletes a book from the library (soft delete)
+    /// </summary>
+    private static async Task DeleteBookAsync()
+    {
+        Console.WriteLine("🗑️  Delete Book");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+
+        try
+        {
+            var id = PromptForInt("Enter Book ID to delete");
+
+            var book = await _bookRepository!.GetByIdAsync(id);
+
+            if (book == null)
+            {
+                Console.WriteLine($"❌ Book with ID {id} not found.");
+                return;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Book to delete:");
+            DisplayBookSummary(book);
+
+            Console.WriteLine();
+            Console.Write("Are you sure you want to delete this book? (y/n): ");
+            var confirmation = Console.ReadLine()?.Trim().ToLower();
+
+            if (confirmation != "y" && confirmation != "yes")
+            {
+                Console.WriteLine("❌ Deletion cancelled.");
+                return;
+            }
+
+            var deleted = await _bookRepository.DeleteAsync(id);
+
+            if (deleted)
+            {
+                Console.WriteLine("✅ Book deleted successfully!");
+            }
+            else
+            {
+                Console.WriteLine("❌ Failed to delete book.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error deleting book: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Searches for books by title
+    /// </summary>
+    private static async Task SearchBooksAsync()
+    {
+        Console.WriteLine("🔎 Search Books");
+        Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+
+        try
+        {
+            var searchTerm = PromptForString("Enter search term");
+
+            var books = await _bookRepository!.SearchByTitleAsync(searchTerm);
+
+            if (books.Count == 0)
+            {
+                Console.WriteLine($"No books found matching '{searchTerm}'.");
+                return;
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"Found {books.Count} book(s) matching '{searchTerm}':");
+            Console.WriteLine();
+
+            foreach (var book in books)
+            {
+                DisplayBookSummary(book);
+            }
+
+            Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error searching books: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region Helper Methods - Display
+
+    /// <summary>
+    /// Displays a summary of a book (one-line format)
+    /// </summary>
+    private static void DisplayBookSummary(Book book)
+    {
+        var status = book.IsAvailable ? "✓ Available" : "✗ Not Available";
+        var availability = $"({book.AvailableCopies}/{book.TotalCopies})";
+
+        Console.WriteLine($"[{book.Id,4}] {book.Title,-40} | ISBN: {book.ISBN,-15} | {status} {availability}");
+    }
+
+    /// <summary>
+    /// Displays detailed information about a book
+    /// </summary>
+    private static void DisplayBookDetails(Book book)
+    {
+        Console.WriteLine("╔════════════════════════════════════════════════════════════════════════════╗");
+        Console.WriteLine($"  ID:              {book.Id}");
+        Console.WriteLine($"  Title:           {book.Title}");
+
+        if (!string.IsNullOrWhiteSpace(book.Subtitle))
+            Console.WriteLine($"  Subtitle:        {book.Subtitle}");
+
+        Console.WriteLine($"  ISBN:            {book.ISBN}");
+        Console.WriteLine($"  Category ID:     {book.CategoryId}");
+
+        if (!string.IsNullOrWhiteSpace(book.Publisher))
+            Console.WriteLine($"  Publisher:       {book.Publisher}");
+
+        if (book.PublishedDate.HasValue)
+            Console.WriteLine($"  Published:       {book.PublishedDate.Value:yyyy-MM-dd}");
+
+        if (book.PageCount.HasValue)
+            Console.WriteLine($"  Pages:           {book.PageCount}");
+
+        if (!string.IsNullOrWhiteSpace(book.Language))
+            Console.WriteLine($"  Language:        {book.Language}");
+
+        if (!string.IsNullOrWhiteSpace(book.ShelfLocation))
+            Console.WriteLine($"  Shelf Location:  {book.ShelfLocation}");
+
+        Console.WriteLine("  ───────────────────────────────────────────────────────────────────────────");
+        Console.WriteLine($"  Total Copies:    {book.TotalCopies}");
+        Console.WriteLine($"  Available:       {book.AvailableCopies}");
+        Console.WriteLine($"  On Loan:         {book.CopiesOnLoan}");
+        Console.WriteLine($"  Status:          {(book.IsAvailable ? "✓ Available" : "✗ Not Available")}");
+        Console.WriteLine("  ───────────────────────────────────────────────────────────────────────────");
+
+        if (!string.IsNullOrWhiteSpace(book.Description))
+        {
+            Console.WriteLine($"  Description:");
+            Console.WriteLine($"  {book.Description}");
+            Console.WriteLine("  ───────────────────────────────────────────────────────────────────────────");
+        }
+
+        Console.WriteLine($"  Created:         {book.CreatedAt:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine($"  Last Updated:    {book.UpdatedAt:yyyy-MM-dd HH:mm:ss} UTC");
+        Console.WriteLine($"  Deleted:         {(book.IsDeleted ? "Yes" : "No")}");
+        Console.WriteLine("╚════════════════════════════════════════════════════════════════════════════╝");
+    }
+
+    #endregion
+
+    #region Helper Methods - Input
+
+    /// <summary>
+    /// Prompts for a required string input
+    /// </summary>
+    private static string PromptForString(string prompt)
+    {
+        while (true)
+        {
+            Console.Write($"{prompt}: ");
+            var input = Console.ReadLine();
+
+            if (!string.IsNullOrWhiteSpace(input))
+            {
+                return input.Trim();
+            }
+
+            Console.WriteLine("❌ This field is required. Please enter a value.");
+        }
+    }
+
+    /// <summary>
+    /// Prompts for an optional string input
+    /// </summary>
+    private static string? PromptForOptionalString(string prompt)
+    {
+        Console.Write($"{prompt}: ");
+        var input = Console.ReadLine();
+        return string.IsNullOrWhiteSpace(input) ? null : input.Trim();
+    }
+
+    /// <summary>
+    /// Prompts for a required integer input
+    /// </summary>
+    private static int PromptForInt(string prompt)
+    {
+        while (true)
+        {
+            Console.Write($"{prompt}: ");
+            var input = Console.ReadLine();
+
+            if (int.TryParse(input, out var value))
+            {
+                return value;
+            }
+
+            Console.WriteLine("❌ Please enter a valid number.");
+        }
+    }
+
+    /// <summary>
+    /// Prompts for an optional integer input
+    /// </summary>
+    private static int? PromptForOptionalInt(string prompt)
+    {
+        Console.Write($"{prompt}: ");
+        var input = Console.ReadLine();
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return null;
+        }
+
+        return int.TryParse(input, out var value) ? value : null;
+    }
+
+    #endregion
 }
