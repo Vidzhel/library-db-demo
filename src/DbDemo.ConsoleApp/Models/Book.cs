@@ -176,4 +176,45 @@ public class Book
     }
 
     public override string ToString() => $"{Title} (ISBN: {ISBN})";
+
+    /// <summary>
+    /// Internal factory method for repository hydration - bypasses validation since data comes from database
+    /// </summary>
+    internal static Book FromDatabase(
+        int id,
+        string isbn,
+        string title,
+        string? subtitle,
+        string? description,
+        string? publisher,
+        DateTime? publishedDate,
+        int? pageCount,
+        string? language,
+        int categoryId,
+        int totalCopies,
+        int availableCopies,
+        string? shelfLocation,
+        bool isDeleted,
+        DateTime createdAt,
+        DateTime updatedAt)
+    {
+        var book = new Book();
+        book.Id = id;
+        book._isbn = isbn;
+        book._title = title;
+        book.Subtitle = subtitle;
+        book.Description = description;
+        book.Publisher = publisher;
+        book.PublishedDate = publishedDate;
+        book.PageCount = pageCount;
+        book.Language = language;
+        book.CategoryId = categoryId;
+        book._totalCopies = totalCopies;
+        book._availableCopies = availableCopies;
+        book.ShelfLocation = shelfLocation;
+        book.IsDeleted = isDeleted;
+        book.CreatedAt = createdAt;
+        book.UpdatedAt = updatedAt;
+        return book;
+    }
 }

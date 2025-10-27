@@ -213,4 +213,43 @@ public class Member
     }
 
     public override string ToString() => $"{FullName} ({MembershipNumber})";
+
+    /// <summary>
+    /// Internal factory method for repository hydration - bypasses validation since data comes from database
+    /// </summary>
+    internal static Member FromDatabase(
+        int id,
+        string membershipNumber,
+        string firstName,
+        string lastName,
+        string email,
+        string? phoneNumber,
+        DateTime dateOfBirth,
+        string? address,
+        DateTime memberSince,
+        DateTime membershipExpiresAt,
+        bool isActive,
+        int maxBooksAllowed,
+        decimal outstandingFees,
+        DateTime createdAt,
+        DateTime updatedAt)
+    {
+        var member = new Member();
+        member.Id = id;
+        member._membershipNumber = membershipNumber;
+        member._firstName = firstName;
+        member._lastName = lastName;
+        member._email = email;
+        member.PhoneNumber = phoneNumber;
+        member.DateOfBirth = dateOfBirth;
+        member.Address = address;
+        member.MemberSince = memberSince;
+        member.MembershipExpiresAt = membershipExpiresAt;
+        member.IsActive = isActive;
+        member._maxBooksAllowed = maxBooksAllowed;
+        member._outstandingFees = outstandingFees;
+        member.CreatedAt = createdAt;
+        member.UpdatedAt = updatedAt;
+        return member;
+    }
 }

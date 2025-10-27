@@ -53,4 +53,25 @@ public class Category
     }
 
     public override string ToString() => $"{Name} (ID: {Id})";
+
+    /// <summary>
+    /// Internal factory method for repository hydration - bypasses validation since data comes from database
+    /// </summary>
+    internal static Category FromDatabase(
+        int id,
+        string name,
+        string? description,
+        int? parentCategoryId,
+        DateTime createdAt,
+        DateTime updatedAt)
+    {
+        var category = new Category();
+        category.Id = id;
+        category._name = name;
+        category.Description = description;
+        category.ParentCategoryId = parentCategoryId;
+        category.CreatedAt = createdAt;
+        category.UpdatedAt = updatedAt;
+        return category;
+    }
 }

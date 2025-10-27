@@ -13,11 +13,14 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
 {
     private readonly DatabaseTestFixture _fixture;
     private readonly BookRepository _repository;
+    private readonly CategoryRepository _categoryRepository;
+    private int _testCategoryId;
 
     public BookRepositoryTests(DatabaseTestFixture fixture)
     {
         _fixture = fixture;
         _repository = new BookRepository(_fixture.ConnectionString);
+        _categoryRepository = new CategoryRepository(_fixture.ConnectionString);
     }
 
     public async Task InitializeAsync()
@@ -26,6 +29,11 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         await _fixture.CleanupTableAsync("BookAuthors");
         await _fixture.CleanupTableAsync("Loans");
         await _fixture.CleanupTableAsync("Books");
+        await _fixture.CleanupTableAsync("Categories");
+
+        // Create a test category for all book tests
+        var testCategory = await _categoryRepository.CreateAsync(new Category("Test Category"));
+        _testCategoryId = testCategory.Id;
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -37,7 +45,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         var book = new Book(
             isbn: "978-0132350884",
             title: "Clean Code",
-            categoryId: 1,  // Assuming category with Id=1 exists from seed data
+            categoryId: _testCategoryId,
             totalCopies: 3
         );
 
@@ -58,7 +66,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task GetByIdAsync_ExistingBook_ShouldReturnBook()
     {
         // Arrange
-        var book = new Book("978-0201633610", "Design Patterns", 1, 2);
+        var book = new Book("978-0201633610", "Design Patterns", _testCategoryId, 2);
         var created = await _repository.CreateAsync(book);
 
         // Act
@@ -88,7 +96,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task GetByIsbnAsync_ExistingBook_ShouldReturnBook()
     {
         // Arrange
-        var book = new Book("978-0136291558", "Object-Oriented Software Engineering", 1, 1);
+        var book = new Book("978-0136291558", "Object-Oriented Software Engineering", _testCategoryId, 1);
         await _repository.CreateAsync(book);
 
         // Act
@@ -116,7 +124,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         // Arrange - Create 5 books
         for (int i = 1; i <= 5; i++)
         {
-            var book = new Book($"978-{i:D10}", $"Book {i}", 1, 1);
+            var book = new Book($"978-{i:D10}", $"Book {i}", _testCategoryId, 1);
             await _repository.CreateAsync(book);
         }
 
@@ -135,8 +143,8 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task GetPagedAsync_ExcludesDeletedBooks_ByDefault()
     {
         // Arrange
-        var book1 = new Book("978-1111111111", "Active Book", 1, 1);
-        var book2 = new Book("978-2222222222", "Deleted Book", 1, 1);
+        var book1 = new Book("978-1111111111", "Active Book", _testCategoryId, 1);
+        var book2 = new Book("978-2222222222", "Deleted Book", _testCategoryId, 1);
 
         var created1 = await _repository.CreateAsync(book1);
         var created2 = await _repository.CreateAsync(book2);
@@ -156,9 +164,9 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task SearchByTitleAsync_PartialMatch_ShouldReturnMatchingBooks()
     {
         // Arrange
-        await _repository.CreateAsync(new Book("978-1111111111", "Clean Code", 1, 1));
-        await _repository.CreateAsync(new Book("978-2222222222", "Clean Architecture", 1, 1));
-        await _repository.CreateAsync(new Book("978-3333333333", "Dirty Code", 1, 1));
+        await _repository.CreateAsync(new Book("978-1111111111", "Clean Code", _testCategoryId, 1));
+        await _repository.CreateAsync(new Book("978-2222222222", "Clean Architecture", _testCategoryId, 1));
+        await _repository.CreateAsync(new Book("978-3333333333", "Dirty Code", _testCategoryId, 1));
 
         // Act
         var results = await _repository.SearchByTitleAsync("Clean");
@@ -172,31 +180,33 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task GetByCategoryAsync_ShouldReturnBooksInCategory()
     {
         // Arrange
-        var cat1Book1 = new Book("978-1111111111", "Category 1 Book A", 1, 1);
-        var cat1Book2 = new Book("978-2222222222", "Category 1 Book B", 1, 1);
-        var cat2Book = new Book("978-3333333333", "Category 2 Book", 2, 1);  // Different category
+        var category2 = await _categoryRepository.CreateAsync(new Category("Test Category 2"));
+
+        var cat1Book1 = new Book("978-1111111111", "Category 1 Book A", _testCategoryId, 1);
+        var cat1Book2 = new Book("978-2222222222", "Category 1 Book B", _testCategoryId, 1);
+        var cat2Book = new Book("978-3333333333", "Category 2 Book", category2.Id, 1);  // Different category
 
         await _repository.CreateAsync(cat1Book1);
         await _repository.CreateAsync(cat1Book2);
         await _repository.CreateAsync(cat2Book);
 
         // Act
-        var category1Books = await _repository.GetByCategoryAsync(1);
-        var category2Books = await _repository.GetByCategoryAsync(2);
+        var category1Books = await _repository.GetByCategoryAsync(_testCategoryId);
+        var category2Books = await _repository.GetByCategoryAsync(category2.Id);
 
         // Assert
         Assert.Equal(2, category1Books.Count);
         Assert.Single(category2Books);
-        Assert.All(category1Books, book => Assert.Equal(1, book.CategoryId));
+        Assert.All(category1Books, book => Assert.Equal(_testCategoryId, book.CategoryId));
     }
 
     [Fact]
     public async Task GetCountAsync_ShouldReturnCorrectCount()
     {
         // Arrange
-        await _repository.CreateAsync(new Book("978-1111111111", "Book 1", 1, 1));
-        await _repository.CreateAsync(new Book("978-2222222222", "Book 2", 1, 1));
-        var deletedBook = await _repository.CreateAsync(new Book("978-3333333333", "Book 3", 1, 1));
+        await _repository.CreateAsync(new Book("978-1111111111", "Book 1", _testCategoryId, 1));
+        await _repository.CreateAsync(new Book("978-2222222222", "Book 2", _testCategoryId, 1));
+        var deletedBook = await _repository.CreateAsync(new Book("978-3333333333", "Book 3", _testCategoryId, 1));
         await _repository.DeleteAsync(deletedBook.Id);
 
         // Act
@@ -212,7 +222,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task UpdateAsync_ValidBook_ShouldUpdateSuccessfully()
     {
         // Arrange
-        var book = new Book("978-0132350884", "Original Title", 1, 3);
+        var book = new Book("978-0132350884", "Original Title", _testCategoryId, 3);
         var created = await _repository.CreateAsync(book);
 
         // Modify the book
@@ -235,7 +245,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task UpdateAsync_NonExistentBook_ShouldReturnFalse()
     {
         // Arrange
-        var book = new Book("978-9999999999", "Non-existent", 1, 1);
+        var book = new Book("978-9999999999", "Non-existent", _testCategoryId, 1);
         // Use reflection to set a non-existent ID
         var idProperty = typeof(Book).GetProperty("Id");
         idProperty?.SetValue(book, 99999);
@@ -251,7 +261,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task DeleteAsync_ExistingBook_ShouldMarkAsDeleted()
     {
         // Arrange
-        var book = new Book("978-0132350884", "To Be Deleted", 1, 1);
+        var book = new Book("978-0132350884", "To Be Deleted", _testCategoryId, 1);
         var created = await _repository.CreateAsync(book);
 
         // Act
@@ -278,7 +288,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public async Task CreateAsync_WithOptionalFields_ShouldStoreAllData()
     {
         // Arrange
-        var book = new Book("978-0132350884", "Book with Details", 1, 5);
+        var book = new Book("978-0132350884", "Book with Details", _testCategoryId, 5);
         book.UpdateDetails("Book with Details", "A Subtitle", "A Description", "Tech Publisher");
         book.UpdatePublishingInfo(new DateTime(2008, 8, 1), 464, "English");
         book.UpdateShelfLocation("A-15");
@@ -307,7 +317,7 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         // Arrange - Create 15 books
         for (int i = 1; i <= 15; i++)
         {
-            await _repository.CreateAsync(new Book($"978-{i:D10}", $"Book {i}", 1, 1));
+            await _repository.CreateAsync(new Book($"978-{i:D10}", $"Book {i}", _testCategoryId, 1));
         }
 
         // Act

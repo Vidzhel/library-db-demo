@@ -122,4 +122,31 @@ public class Author
     }
 
     public override string ToString() => FullName;
+
+    /// <summary>
+    /// Internal factory method for repository hydration - bypasses validation since data comes from database
+    /// </summary>
+    internal static Author FromDatabase(
+        int id,
+        string firstName,
+        string lastName,
+        string? biography,
+        DateTime? dateOfBirth,
+        string? nationality,
+        string? email,
+        DateTime createdAt,
+        DateTime updatedAt)
+    {
+        var author = new Author();
+        author.Id = id;
+        author._firstName = firstName;
+        author._lastName = lastName;
+        author.Biography = biography;
+        author.DateOfBirth = dateOfBirth;
+        author.Nationality = nationality;
+        author._email = email;
+        author.CreatedAt = createdAt;
+        author.UpdatedAt = updatedAt;
+        return author;
+    }
 }

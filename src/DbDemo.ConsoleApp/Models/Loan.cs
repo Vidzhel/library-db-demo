@@ -153,6 +153,43 @@ public class Loan
         var statusText = ReturnedAt.HasValue ? "Returned" : (IsOverdue ? "Overdue" : "Active");
         return $"Loan #{Id}: Book {BookId} to Member {MemberId} - {statusText}";
     }
+
+    /// <summary>
+    /// Internal factory method for repository hydration - bypasses validation since data comes from database
+    /// </summary>
+    internal static Loan FromDatabase(
+        int id,
+        int memberId,
+        int bookId,
+        DateTime borrowedAt,
+        DateTime dueDate,
+        DateTime? returnedAt,
+        LoanStatus status,
+        decimal? lateFee,
+        bool isFeePaid,
+        int renewalCount,
+        int maxRenewalsAllowed,
+        string? notes,
+        DateTime createdAt,
+        DateTime updatedAt)
+    {
+        var loan = new Loan();
+        loan.Id = id;
+        loan.MemberId = memberId;
+        loan.BookId = bookId;
+        loan.BorrowedAt = borrowedAt;
+        loan.DueDate = dueDate;
+        loan.ReturnedAt = returnedAt;
+        loan.Status = status;
+        loan.LateFee = lateFee;
+        loan.IsFeePaid = isFeePaid;
+        loan.RenewalCount = renewalCount;
+        loan.MaxRenewalsAllowed = maxRenewalsAllowed;
+        loan.Notes = notes;
+        loan.CreatedAt = createdAt;
+        loan.UpdatedAt = updatedAt;
+        return loan;
+    }
 }
 
 public enum LoanStatus

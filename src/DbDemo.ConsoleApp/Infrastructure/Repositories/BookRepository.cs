@@ -293,8 +293,7 @@ public class BookRepository : IBookRepository
 
     /// <summary>
     /// Maps a SqlDataReader row to a Book entity
-    /// Uses reflection to work with the rich domain model that has private setters
-    /// Note: In production, consider adding a factory method to Book for persistence layer
+    /// Uses internal factory method to bypass validation for database-sourced data
     /// </summary>
     private static Book MapReaderToBook(SqlDataReader reader)
     {
@@ -316,48 +315,23 @@ public class BookRepository : IBookRepository
         var createdAt = reader.GetDateTime(14);
         var updatedAt = reader.GetDateTime(15);
 
-        // Use reflection to create instance via private constructor and set all properties
-        // This is necessary because the domain model enforces encapsulation
-        var book = (Book)Activator.CreateInstance(typeof(Book), nonPublic: true)!;
-
-        SetPropertyValue(book, "Id", id);
-        // Set backing fields directly to bypass validation (since data is already validated in DB)
-        SetBackingField(book, "_isbn", isbn);
-        SetBackingField(book, "_title", title);
-        SetPropertyValue(book, "Subtitle", subtitle);
-        SetPropertyValue(book, "Description", description);
-        SetPropertyValue(book, "Publisher", publisher);
-        SetPropertyValue(book, "PublishedDate", publishedDate);
-        SetPropertyValue(book, "PageCount", pageCount);
-        SetPropertyValue(book, "Language", language);
-        SetPropertyValue(book, "CategoryId", categoryId);
-        SetBackingField(book, "_totalCopies", totalCopies);
-        SetBackingField(book, "_availableCopies", availableCopies);
-        SetPropertyValue(book, "ShelfLocation", shelfLocation);
-        SetPropertyValue(book, "IsDeleted", isDeleted);
-        SetPropertyValue(book, "CreatedAt", createdAt);
-        SetPropertyValue(book, "UpdatedAt", updatedAt);
-
-        return book;
-    }
-
-    /// <summary>
-    /// Helper method to set property values using reflection
-    /// </summary>
-    private static void SetPropertyValue(object obj, string propertyName, object? value)
-    {
-        var property = obj.GetType().GetProperty(propertyName,
-            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        property?.SetValue(obj, value);
-    }
-
-    /// <summary>
-    /// Helper method to set backing field values using reflection
-    /// </summary>
-    private static void SetBackingField(object obj, string fieldName, object? value)
-    {
-        var field = obj.GetType().GetField(fieldName,
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        field?.SetValue(obj, value);
+        return Book.FromDatabase(
+            id,
+            isbn,
+            title,
+            subtitle,
+            description,
+            publisher,
+            publishedDate,
+            pageCount,
+            language,
+            categoryId,
+            totalCopies,
+            availableCopies,
+            shelfLocation,
+            isDeleted,
+            createdAt,
+            updatedAt
+        );
     }
 }
