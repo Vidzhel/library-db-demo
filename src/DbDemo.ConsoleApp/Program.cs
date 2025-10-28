@@ -732,6 +732,9 @@ internal class Program
                     case 8:
                         await RunConnectionPoolingDemoAsync();
                         break;
+                    case 9:
+                        await RunBulkOperationsDemoAsync();
+                        break;
                     default:
                         Console.WriteLine("❌ Invalid choice. Please try again.");
                         break;
@@ -773,6 +776,7 @@ internal class Program
         Console.WriteLine("6. Scenario 6: Loan Renewal");
         Console.WriteLine("7. Run ALL Scenarios");
         Console.WriteLine("8. Connection Pooling Performance Demo");
+        Console.WriteLine("9. Bulk Operations Performance Demo");
         Console.WriteLine("0. Back to Main Menu");
         Console.WriteLine();
         Console.Write("Enter your choice: ");
@@ -805,6 +809,37 @@ internal class Program
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Connection pooling demo error: {ex.Message}");
+            Console.WriteLine($"   Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    /// <summary>
+    /// Runs the bulk operations performance demonstration
+    /// </summary>
+    private static async Task RunBulkOperationsDemoAsync()
+    {
+        if (_configuration == null)
+        {
+            Console.WriteLine("❌ Configuration not initialized. Cannot run demo.");
+            return;
+        }
+
+        try
+        {
+            var appConnectionString = _configuration.GetConnectionString("LibraryDb");
+
+            if (string.IsNullOrEmpty(appConnectionString))
+            {
+                Console.WriteLine("❌ Application connection string not configured!");
+                return;
+            }
+
+            var bulkDemo = new BulkOperationsDemo(appConnectionString);
+            await bulkDemo.RunDemonstrationAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Bulk operations demo error: {ex.Message}");
             Console.WriteLine($"   Stack trace: {ex.StackTrace}");
         }
     }
