@@ -729,6 +729,9 @@ internal class Program
                     case 7:
                         await demoRunner.RunAllScenariosAsync();
                         break;
+                    case 8:
+                        await RunConnectionPoolingDemoAsync();
+                        break;
                     default:
                         Console.WriteLine("❌ Invalid choice. Please try again.");
                         break;
@@ -769,9 +772,41 @@ internal class Program
         Console.WriteLine("5. Scenario 5: Overdue Loan Scenario");
         Console.WriteLine("6. Scenario 6: Loan Renewal");
         Console.WriteLine("7. Run ALL Scenarios");
+        Console.WriteLine("8. Connection Pooling Performance Demo");
         Console.WriteLine("0. Back to Main Menu");
         Console.WriteLine();
         Console.Write("Enter your choice: ");
+    }
+
+    /// <summary>
+    /// Runs the connection pooling performance demonstration
+    /// </summary>
+    private static async Task RunConnectionPoolingDemoAsync()
+    {
+        if (_configuration == null || _bookRepository == null)
+        {
+            Console.WriteLine("❌ Configuration or repository not initialized. Cannot run demo.");
+            return;
+        }
+
+        try
+        {
+            var appConnectionString = _configuration.GetConnectionString("LibraryDb");
+
+            if (string.IsNullOrEmpty(appConnectionString))
+            {
+                Console.WriteLine("❌ Application connection string not configured!");
+                return;
+            }
+
+            var poolingDemo = new ConnectionPoolingDemo(appConnectionString, _bookRepository);
+            await poolingDemo.RunDemonstrationAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Connection pooling demo error: {ex.Message}");
+            Console.WriteLine($"   Stack trace: {ex.StackTrace}");
+        }
     }
 
     /// <summary>
