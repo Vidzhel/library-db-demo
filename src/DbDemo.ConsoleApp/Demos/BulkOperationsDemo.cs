@@ -1,4 +1,5 @@
 using DbDemo.ConsoleApp.Infrastructure.BulkOperations;
+using DbDemo.ConsoleApp.Models;
 using Microsoft.Data.SqlClient;
 
 namespace DbDemo.ConsoleApp.Demos;
@@ -11,11 +12,13 @@ public class BulkOperationsDemo
 {
     private readonly string _connectionString;
     private readonly BulkBookImporter _importer;
+    private readonly TvpBookImporter _tvpImporter;
 
     public BulkOperationsDemo(string connectionString)
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _importer = new BulkBookImporter(connectionString);
+        _tvpImporter = new TvpBookImporter(connectionString);
     }
 
     /// <summary>
@@ -28,9 +31,10 @@ public class BulkOperationsDemo
         Console.WriteLine("This demo compares different approaches to inserting large volumes of data:");
         Console.WriteLine("1. Individual INSERT statements (baseline - SLOW)");
         Console.WriteLine("2. Batched INSERT statements with transactions (better)");
-        Console.WriteLine("3. SqlBulkCopy (FASTEST - recommended for bulk imports)");
+        Console.WriteLine("3. Table-Valued Parameters with stored procedure (good for business logic)");
+        Console.WriteLine("4. SqlBulkCopy (FASTEST - recommended for pure bulk imports)");
         Console.WriteLine();
-        Console.WriteLine("We'll insert 10,000 books and measure the performance of each approach.");
+        Console.WriteLine("We'll insert books and measure the performance of each approach.");
         Console.WriteLine();
 
         await Task.Delay(2000);
@@ -48,7 +52,12 @@ public class BulkOperationsDemo
 
         await Task.Delay(1500);
 
-        // Part 3: Batch size comparison for SqlBulkCopy
+        // Part 3: Table-Valued Parameters comparison
+        await RunTvpComparisonAsync(categoryId);
+
+        await Task.Delay(1500);
+
+        // Part 4: Batch size comparison for SqlBulkCopy
         await RunBatchSizeComparisonAsync(categoryId);
 
         PrintSuccess("\n=== BULK OPERATIONS DEMONSTRATION COMPLETED ===\n");
@@ -148,11 +157,93 @@ public class BulkOperationsDemo
     }
 
     /// <summary>
+    /// Compares Table-Valued Parameters with other methods
+    /// </summary>
+    private async Task RunTvpComparisonAsync(int categoryId)
+    {
+        PrintHeader("TEST 3: Table-Valued Parameters (TVP) Comparison");
+
+        // Check if TVP infrastructure is available
+        var tvpAvailable = await _tvpImporter.IsTvpInfrastructureAvailableAsync();
+
+        if (!tvpAvailable)
+        {
+            PrintWarning("⚠  TVP infrastructure not available (migration V004 not run)");
+            PrintWarning("   Skipping TVP comparison");
+            PrintInfo("   Run migrations to create BookTableType and BulkInsertBooks stored procedure");
+            Console.WriteLine();
+            return;
+        }
+
+        PrintSuccess("✓ TVP infrastructure available");
+        Console.WriteLine();
+
+        const int recordCount = 1000;
+        PrintInfo($"Testing with {recordCount:N0} records");
+        Console.WriteLine();
+
+        var books = BulkBookImporter.GenerateSampleBooks(recordCount, categoryId);
+
+        // Test 1: Batched INSERTs
+        await CleanupBooksAsync();
+        PrintStep("Method 1: Batched INSERT statements (baseline)...");
+        var (count1, time1) = await _importer.BulkInsertWithBatchedInsertsAsync(books, batchSize: 100);
+        PrintSuccess($"Inserted {count1:N0} books in {time1:N0} ms ({(time1 / (double)count1):F2} ms per book)");
+        Console.WriteLine();
+
+        // Test 2: Table-Valued Parameters
+        await CleanupBooksAsync();
+        PrintStep("Method 2: Table-Valued Parameters (TVP)...");
+        var (count2, time2) = await _tvpImporter.BulkInsertWithTvpAsync(books);
+        PrintSuccess($"Inserted {count2:N0} books in {time2:N0} ms ({(time2 / (double)count2):F2} ms per book)");
+        Console.WriteLine();
+
+        // Test 3: SqlBulkCopy
+        await CleanupBooksAsync();
+        PrintStep("Method 3: SqlBulkCopy...");
+        var (count3, time3) = await _importer.BulkInsertWithSqlBulkCopyAsync(books, batchSize: 1000);
+        PrintSuccess($"Inserted {count3:N0} books in {time3:N0} ms ({(time3 / (double)count3):F2} ms per book)");
+        Console.WriteLine();
+
+        // Summary
+        PrintSuccess("📊 PERFORMANCE COMPARISON (1,000 records):");
+        PrintInfo($"  Batched INSERTs:  {time1,6:N0} ms (baseline)");
+        PrintInfo($"  TVP:              {time2,6:N0} ms ({(time1 / (double)time2):F1}x faster)");
+        PrintInfo($"  SqlBulkCopy:      {time3,6:N0} ms ({(time1 / (double)time3):F1}x faster)");
+        Console.WriteLine();
+
+        PrintSuccess("💡 WHEN TO USE EACH:");
+        PrintInfo("  • Batched INSERTs:  Small datasets (<100 records), simple scenarios");
+        PrintInfo("  • TVP:              Medium datasets, need stored procedure logic/validation");
+        PrintInfo("  • SqlBulkCopy:      Large datasets (>1000 records), pure bulk import");
+        Console.WriteLine();
+
+        // Demonstrate TVP validation
+        PrintStep("Demonstrating TVP validation (duplicate ISBN error)...");
+        var duplicateBooks = new List<Book>
+        {
+            new Book("978-DUPLICATE-01", "Test Book 1", categoryId, 1),
+            new Book("978-DUPLICATE-01", "Test Book 2", categoryId, 1) // Duplicate ISBN
+        };
+
+        try
+        {
+            await _tvpImporter.BulkInsertWithTvpAsync(duplicateBooks);
+            PrintWarning("Expected error but insert succeeded!");
+        }
+        catch (SqlException ex)
+        {
+            PrintSuccess($"✓ Validation worked: {ex.Message}");
+        }
+        Console.WriteLine();
+    }
+
+    /// <summary>
     /// Tests different batch sizes for SqlBulkCopy
     /// </summary>
     private async Task RunBatchSizeComparisonAsync(int categoryId)
     {
-        PrintHeader("TEST 3: SqlBulkCopy Batch Size Comparison");
+        PrintHeader("TEST 4: SqlBulkCopy Batch Size Comparison");
 
         const int recordCount = 5000;
         PrintInfo($"Testing SqlBulkCopy with {recordCount:N0} records and different batch sizes");
