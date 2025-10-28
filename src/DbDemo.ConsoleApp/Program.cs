@@ -1,3 +1,4 @@
+using DbDemo.ConsoleApp.Demos;
 using DbDemo.ConsoleApp.Infrastructure.Migrations;
 using DbDemo.ConsoleApp.Infrastructure.Repositories;
 using DbDemo.ConsoleApp.Models;
@@ -13,6 +14,10 @@ internal class Program
 {
     private static IConfiguration? _configuration;
     private static IBookRepository? _bookRepository;
+    private static IAuthorRepository? _authorRepository;
+    private static IMemberRepository? _memberRepository;
+    private static ILoanRepository? _loanRepository;
+    private static ICategoryRepository? _categoryRepository;
 
     static async Task Main(string[] args)
     {
@@ -225,13 +230,13 @@ internal class Program
     }
 
     /// <summary>
-    /// Initializes the repository with the application connection string
+    /// Initializes the repositories with the application connection string
     /// </summary>
     private static void InitializeRepository()
     {
         if (_configuration == null)
         {
-            Console.WriteLine("❌ Configuration not loaded - cannot initialize repository!");
+            Console.WriteLine("❌ Configuration not loaded - cannot initialize repositories!");
             return;
         }
 
@@ -247,7 +252,11 @@ internal class Program
             }
 
             _bookRepository = new BookRepository(appConnectionString);
-            Console.WriteLine("✅ Book repository initialized");
+            _authorRepository = new AuthorRepository(appConnectionString);
+            _memberRepository = new MemberRepository(appConnectionString);
+            _loanRepository = new LoanRepository(appConnectionString);
+            _categoryRepository = new CategoryRepository(appConnectionString);
+            Console.WriteLine("✅ All repositories initialized");
         }
         catch (Exception ex)
         {
@@ -301,6 +310,9 @@ internal class Program
                     case 6:
                         await SearchBooksAsync();
                         break;
+                    case 7:
+                        await RunDemoMenuAsync();
+                        break;
                     case 0:
                         Console.WriteLine("Thank you for using the Library Management System!");
                         running = false;
@@ -345,6 +357,7 @@ internal class Program
         Console.WriteLine("4. Update Book");
         Console.WriteLine("5. Delete Book");
         Console.WriteLine("6. Search Books by Title");
+        Console.WriteLine("7. Run Automated Demos");
         Console.WriteLine("0. Exit");
         Console.WriteLine();
         Console.Write("Enter your choice: ");
@@ -650,6 +663,127 @@ internal class Program
         {
             Console.WriteLine($"❌ Error searching books: {ex.Message}");
         }
+    }
+
+    #endregion
+
+    #region Demo Menu
+
+    /// <summary>
+    /// Displays and handles the automated demo menu
+    /// </summary>
+    private static async Task RunDemoMenuAsync()
+    {
+        if (!AreAllRepositoriesInitialized())
+        {
+            Console.WriteLine("❌ Not all repositories are initialized. Cannot run demos.");
+            return;
+        }
+
+        var running = true;
+
+        while (running)
+        {
+            try
+            {
+                DisplayDemoMenu();
+                var choice = GetUserChoice();
+
+                Console.WriteLine();
+
+                if (choice == 0)
+                {
+                    running = false;
+                    continue;
+                }
+
+                var demoRunner = new DemoRunner(
+                    _bookRepository!,
+                    _authorRepository!,
+                    _memberRepository!,
+                    _loanRepository!,
+                    _categoryRepository!,
+                    withDelays: true
+                );
+
+                switch (choice)
+                {
+                    case 1:
+                        await demoRunner.RunScenario1_BasicBookManagementAsync();
+                        break;
+                    case 2:
+                        await demoRunner.RunScenario2_AuthorManagementAsync();
+                        break;
+                    case 3:
+                        await demoRunner.RunScenario3_MemberManagementAsync();
+                        break;
+                    case 4:
+                        await demoRunner.RunScenario4_CompleteLoanWorkflowAsync();
+                        break;
+                    case 5:
+                        await demoRunner.RunScenario5_OverdueLoanScenarioAsync();
+                        break;
+                    case 6:
+                        await demoRunner.RunScenario6_LoanRenewalAsync();
+                        break;
+                    case 7:
+                        await demoRunner.RunAllScenariosAsync();
+                        break;
+                    default:
+                        Console.WriteLine("❌ Invalid choice. Please try again.");
+                        break;
+                }
+
+                if (running && choice != 0)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("Press any key to return to demo menu...");
+                    Console.ReadKey();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Demo error: {ex.Message}");
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey();
+            }
+
+            Console.WriteLine();
+        }
+    }
+
+    /// <summary>
+    /// Displays the demo menu
+    /// </summary>
+    private static void DisplayDemoMenu()
+    {
+        Console.Clear();
+        Console.WriteLine("╔════════════════════════════════════════╗");
+        Console.WriteLine("║         AUTOMATED DEMO SCENARIOS       ║");
+        Console.WriteLine("╚════════════════════════════════════════╝");
+        Console.WriteLine();
+        Console.WriteLine("1. Scenario 1: Basic Book Management");
+        Console.WriteLine("2. Scenario 2: Author Management");
+        Console.WriteLine("3. Scenario 3: Member Management");
+        Console.WriteLine("4. Scenario 4: Complete Loan Workflow (Happy Path)");
+        Console.WriteLine("5. Scenario 5: Overdue Loan Scenario");
+        Console.WriteLine("6. Scenario 6: Loan Renewal");
+        Console.WriteLine("7. Run ALL Scenarios");
+        Console.WriteLine("0. Back to Main Menu");
+        Console.WriteLine();
+        Console.Write("Enter your choice: ");
+    }
+
+    /// <summary>
+    /// Checks if all repositories are initialized
+    /// </summary>
+    private static bool AreAllRepositoriesInitialized()
+    {
+        return _bookRepository != null &&
+               _authorRepository != null &&
+               _memberRepository != null &&
+               _loanRepository != null &&
+               _categoryRepository != null;
     }
 
     #endregion
