@@ -17,7 +17,7 @@ public class BookRepository : IBookRepository
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
     }
 
-    public async Task<Book> CreateAsync(Book book, SqlTransaction? transaction = null, CancellationToken cancellationToken = default)
+    public async Task<Book> CreateAsync(Book book, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         // SQL with explicit column names and OUTPUT clause to get generated ID
         const string sql = @"
@@ -33,52 +33,22 @@ public class BookRepository : IBookRepository
                 @ShelfLocation, @IsDeleted, @CreatedAt, @UpdatedAt
             );";
 
-        SqlConnection? ownedConnection = null;
-        SqlConnection connection;
+        var connection = transaction.Connection ;
 
-        if (transaction != null)
-        {
-            // Use the existing connection from the transaction
-            connection = transaction.Connection
-                ?? throw new InvalidOperationException("Transaction has no associated connection");
-        }
-        else
-        {
-            // Create our own connection
-            ownedConnection = new SqlConnection(_connectionString);
-            connection = ownedConnection;
-            await connection.OpenAsync(cancellationToken);
-        }
+        await using var command = new SqlCommand(sql, connection, transaction);
 
-        try
-        {
-            await using var command = new SqlCommand(sql, connection);
-            if (transaction != null)
-            {
-                command.Transaction = transaction;
-            }
+        // Add parameters - this prevents SQL injection
+        AddBookParameters(command, book);
 
-            // Add parameters - this prevents SQL injection
-            AddBookParameters(command, book);
+        // ExecuteScalar returns the OUTPUT value (new Id)
+        var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
 
-            // ExecuteScalar returns the OUTPUT value (new Id)
-            var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
-
-            // Return the book by querying it back with the new ID
-            return await GetByIdAsync(newId, cancellationToken)
-                ?? throw new InvalidOperationException("Failed to retrieve newly created book");
-        }
-        finally
-        {
-            // Only dispose the connection if we created it
-            if (ownedConnection != null)
-            {
-                await ownedConnection.DisposeAsync();
-            }
-        }
+        // Fetch the created book using the same transaction
+        return await GetByIdAsync(newId, transaction, cancellationToken)
+            ?? throw new InvalidOperationException("Failed to retrieve newly created book");
     }
 
-    public async Task<Book?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<Book?> GetByIdAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         // Explicit column selection - better performance and clarity than SELECT *
         const string sql = @"
@@ -89,10 +59,9 @@ public class BookRepository : IBookRepository
             FROM Books
             WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Id", SqlDbType.Int).Value = id;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -105,7 +74,7 @@ public class BookRepository : IBookRepository
         return null;
     }
 
-    public async Task<Book?> GetByIsbnAsync(string isbn, CancellationToken cancellationToken = default)
+    public async Task<Book?> GetByIsbnAsync(string isbn, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT
@@ -115,10 +84,9 @@ public class BookRepository : IBookRepository
             FROM Books
             WHERE ISBN = @ISBN;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@ISBN", SqlDbType.NVarChar, 20).Value = isbn;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -132,9 +100,10 @@ public class BookRepository : IBookRepository
     }
 
     public async Task<List<Book>> GetPagedAsync(
-        int pageNumber = 1,
-        int pageSize = 10,
-        bool includeDeleted = false,
+        int pageNumber,
+        int pageSize,
+        bool includeDeleted,
+        SqlTransaction transaction,
         CancellationToken cancellationToken = default)
     {
         if (pageNumber < 1) throw new ArgumentException("Page number must be >= 1", nameof(pageNumber));
@@ -153,10 +122,9 @@ public class BookRepository : IBookRepository
             OFFSET @Offset ROWS
             FETCH NEXT @PageSize ROWS ONLY;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Offset", SqlDbType.Int).Value = (pageNumber - 1) * pageSize;
         command.Parameters.Add("@PageSize", SqlDbType.Int).Value = pageSize;
 
@@ -171,7 +139,7 @@ public class BookRepository : IBookRepository
         return books;
     }
 
-    public async Task<List<Book>> SearchByTitleAsync(string searchTerm, CancellationToken cancellationToken = default)
+    public async Task<List<Book>> SearchByTitleAsync(string searchTerm, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(searchTerm))
             throw new ArgumentException("Search term cannot be empty", nameof(searchTerm));
@@ -186,10 +154,9 @@ public class BookRepository : IBookRepository
             WHERE IsDeleted = 0 AND Title LIKE @SearchPattern
             ORDER BY Title;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         // Add wildcards in code, not in SQL - still parameterized and safe
         command.Parameters.Add("@SearchPattern", SqlDbType.NVarChar, 202).Value = $"%{searchTerm}%";
 
@@ -204,7 +171,7 @@ public class BookRepository : IBookRepository
         return books;
     }
 
-    public async Task<List<Book>> GetByCategoryAsync(int categoryId, CancellationToken cancellationToken = default)
+    public async Task<List<Book>> GetByCategoryAsync(int categoryId, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT
@@ -215,10 +182,9 @@ public class BookRepository : IBookRepository
             WHERE CategoryId = @CategoryId AND IsDeleted = 0
             ORDER BY Title;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@CategoryId", SqlDbType.Int).Value = categoryId;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -232,21 +198,20 @@ public class BookRepository : IBookRepository
         return books;
     }
 
-    public async Task<int> GetCountAsync(bool includeDeleted = false, CancellationToken cancellationToken = default)
+    public async Task<int> GetCountAsync(bool includeDeleted, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         string sql = "SELECT COUNT(*) FROM Books"
             + (includeDeleted ? ";" : " WHERE IsDeleted = 0;");
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
 
         var count = (int)await command.ExecuteScalarAsync(cancellationToken);
         return count;
     }
 
-    public async Task<bool> UpdateAsync(Book book, SqlTransaction? transaction = null, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(Book book, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             UPDATE Books
@@ -267,48 +232,59 @@ public class BookRepository : IBookRepository
                 UpdatedAt = @UpdatedAt
             WHERE Id = @Id;";
 
-        SqlConnection? ownedConnection = null;
-        SqlConnection connection;
+        var connection = transaction.Connection ;
 
-        if (transaction != null)
-        {
-            // Use the existing connection from the transaction
-            connection = transaction.Connection
-                ?? throw new InvalidOperationException("Transaction has no associated connection");
-        }
-        else
-        {
-            // Create our own connection
-            ownedConnection = new SqlConnection(_connectionString);
-            connection = ownedConnection;
-            await connection.OpenAsync(cancellationToken);
-        }
+        await using var command = new SqlCommand(sql, connection, transaction);
 
-        try
-        {
-            await using var command = new SqlCommand(sql, connection);
-            if (transaction != null)
-            {
-                command.Transaction = transaction;
-            }
+        AddBookParameters(command, book);
+        command.Parameters.Add("@Id", SqlDbType.Int).Value = book.Id;
 
-            AddBookParameters(command, book);
-            command.Parameters.Add("@Id", SqlDbType.Int).Value = book.Id;
-
-            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
-            return rowsAffected > 0;
-        }
-        finally
-        {
-            // Only dispose the connection if we created it
-            if (ownedConnection != null)
-            {
-                await ownedConnection.DisposeAsync();
-            }
-        }
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return rowsAffected > 0;
     }
 
-    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<bool> BorrowCopyAsync(int bookId, SqlTransaction transaction, CancellationToken cancellationToken = default)
+    {
+        // Atomic UPDATE with WHERE conditions to prevent TOCTOU race conditions
+        // This checks availability and decrements in a single database operation
+        const string sql = @"
+            UPDATE Books
+            SET AvailableCopies = AvailableCopies - 1,
+                UpdatedAt = @UpdatedAt
+            WHERE Id = @Id
+              AND AvailableCopies > 0
+              AND IsDeleted = 0;";
+
+        var connection = transaction.Connection ;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.Add("@Id", SqlDbType.Int).Value = bookId;
+        command.Parameters.Add("@UpdatedAt", SqlDbType.DateTime2).Value = DateTime.UtcNow;
+
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return rowsAffected > 0;  // Returns false if book unavailable or deleted
+    }
+
+    public async Task<bool> ReturnCopyAsync(int bookId, SqlTransaction transaction, CancellationToken cancellationToken = default)
+    {
+        // Atomic UPDATE to increment available copies
+        const string sql = @"
+            UPDATE Books
+            SET AvailableCopies = AvailableCopies + 1,
+                UpdatedAt = @UpdatedAt
+            WHERE Id = @Id;";
+
+        var connection = transaction.Connection ;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.Add("@Id", SqlDbType.Int).Value = bookId;
+        command.Parameters.Add("@UpdatedAt", SqlDbType.DateTime2).Value = DateTime.UtcNow;
+
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return rowsAffected > 0;  // Returns false if book not found
+    }
+
+    public async Task<bool> DeleteAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         // Soft delete - set IsDeleted flag instead of actually deleting
         const string sql = @"
@@ -316,10 +292,9 @@ public class BookRepository : IBookRepository
             SET IsDeleted = 1, UpdatedAt = @UpdatedAt
             WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Id", SqlDbType.Int).Value = id;
         command.Parameters.Add("@UpdatedAt", SqlDbType.DateTime2).Value = DateTime.UtcNow;
 

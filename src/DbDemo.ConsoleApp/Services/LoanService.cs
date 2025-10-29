@@ -1,14 +1,17 @@
 using DbDemo.ConsoleApp.Infrastructure.Repositories;
 using DbDemo.ConsoleApp.Models;
+using Microsoft.Data.SqlClient;
 
 namespace DbDemo.ConsoleApp.Services;
 
 /// <summary>
-/// ⚠️ WARNING: This is an ANTI-PATTERN demonstration!
-/// This service performs multi-step operations WITHOUT transaction support.
-/// This can lead to data inconsistency and corruption.
-/// See docs/20-transaction-problem.md for details.
-/// This will be fixed in Commit 22.
+/// Service layer for loan operations with proper transaction management.
+///
+/// ✅ This service demonstrates CORRECT transaction handling for multi-step operations.
+/// All operations that modify multiple tables are wrapped in explicit transactions
+/// to ensure atomicity (all-or-nothing behavior).
+///
+/// See docs/21-transactions.md for detailed explanation of transaction patterns.
 /// </summary>
 public class LoanService
 {
@@ -30,20 +33,20 @@ public class LoanService
     }
 
     /// <summary>
-    /// ⚠️ DANGER: Multi-step operation WITHOUT transaction!
-    /// Steps:
-    ///   1. Validate member eligibility
-    ///   2. Check book availability
-    ///   3. Decrement book available copies
-    ///   4. Create loan record
+    /// Creates a new loan with proper transaction handling.
     ///
-    /// Problem: If step 4 fails, step 3 is already committed!
-    /// This leaves the database in an inconsistent state.
+    /// ✅ This method demonstrates CORRECT multi-step transaction handling:
+    ///   1. Validate member eligibility (within transaction)
+    ///   2. Check book availability (within transaction)
+    ///   3. Decrement book available copies (within transaction)
+    ///   4. Create loan record (within transaction)
+    ///
+    /// Transaction commit/rollback is handled by the caller at the top level.
     /// </summary>
-    public async Task<Loan> CreateLoanAsync(int memberId, int bookId, CancellationToken cancellationToken = default)
+    public async Task<Loan> CreateLoanAsync(int memberId, int bookId, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
-        // Step 1: Validate member exists and is eligible
-        var member = await _memberRepository.GetByIdAsync(memberId, cancellationToken);
+        // Step 1: Validate member exists and is eligible (within transaction)
+        var member = await _memberRepository.GetByIdAsync(memberId, transaction, cancellationToken);
         if (member == null)
         {
             throw new InvalidOperationException($"Member with ID {memberId} not found.");
@@ -60,7 +63,7 @@ public class LoanService
         }
 
         // Check if member has reached max books limit
-        var activeLoans = await _loanRepository.GetActiveLoansByMemberIdAsync(memberId, cancellationToken);
+        var activeLoans = await _loanRepository.GetActiveLoansByMemberIdAsync(memberId, transaction, cancellationToken);
         if (activeLoans.Count >= member.MaxBooksAllowed)
         {
             throw new InvalidOperationException(
@@ -74,54 +77,37 @@ public class LoanService
                 $"Member {member.MembershipNumber} has outstanding fees of ${member.OutstandingFees:F2}. Please clear fees before borrowing.");
         }
 
-        // Step 2: Check book availability
-        var book = await _bookRepository.GetByIdAsync(bookId, cancellationToken);
-        if (book == null)
+        // Step 2: Atomically decrement available copies
+        // This single operation checks availability AND decrements in one atomic UPDATE
+        // Prevents TOCTOU (Time-of-Check to Time-of-Use) race conditions
+        var bookBorrowed = await _bookRepository.BorrowCopyAsync(bookId, transaction, cancellationToken);
+        if (!bookBorrowed)
         {
-            throw new InvalidOperationException($"Book with ID {bookId} not found.");
+            throw new InvalidOperationException(
+                $"Book with ID {bookId} is not available (no copies available, book deleted, or not found).");
         }
 
-        if (book.IsDeleted)
-        {
-            throw new InvalidOperationException($"Book '{book.Title}' is no longer available in the catalog.");
-        }
-
-        if (book.AvailableCopies <= 0)
-        {
-            throw new InvalidOperationException($"Book '{book.Title}' is not available. All copies are currently on loan.");
-        }
-
-        // Step 3: Decrement available copies
-        // ⚠️ DANGER: This update is committed immediately without a transaction!
-        book.BorrowCopy();
-        await _bookRepository.UpdateAsync(book, null, cancellationToken);
-
-        // ⚠️ CRITICAL PROBLEM: If the loan creation below fails (step 4),
-        // the book's available copies have already been decremented (step 3).
-        // This creates data inconsistency!
-
-        // Step 4: Create loan record
+        // Step 3: Create loan record (within transaction)
         var loan = Loan.Create(memberId, bookId);
+        var createdLoan = await _loanRepository.CreateAsync(loan, transaction, cancellationToken);
 
-        // If this fails, we're in trouble - book copies were already decremented!
-        var createdLoan = await _loanRepository.CreateAsync(loan, null, cancellationToken);
-
-        return createdLoan;
+        return createdLoan!;
     }
 
     /// <summary>
-    /// ⚠️ DANGER: Multi-step operation WITHOUT transaction!
-    /// Steps:
-    ///   1. Get loan and validate it exists
-    ///   2. Mark loan as returned
-    ///   3. Increment book available copies
+    /// Returns a loan with proper transaction handling.
     ///
-    /// Problem: If step 3 fails, step 2 is already committed!
+    /// ✅ This method demonstrates CORRECT multi-step transaction handling:
+    ///   1. Get loan and validate it exists (within transaction)
+    ///   2. Mark loan as returned (within transaction)
+    ///   3. Increment book available copies (within transaction)
+    ///
+    /// Transaction commit/rollback is handled by the caller at the top level.
     /// </summary>
-    public async Task<Loan> ReturnLoanAsync(int loanId, CancellationToken cancellationToken = default)
+    public async Task<Loan> ReturnLoanAsync(int loanId, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
-        // Step 1: Get loan
-        var loan = await _loanRepository.GetByIdAsync(loanId, cancellationToken);
+        // Step 1: Get loan and validate (within transaction)
+        var loan = await _loanRepository.GetByIdAsync(loanId, transaction, cancellationToken);
         if (loan == null)
         {
             throw new InvalidOperationException($"Loan with ID {loanId} not found.");
@@ -132,36 +118,34 @@ public class LoanService
             throw new InvalidOperationException($"Loan {loanId} cannot be returned. Current status: {loan.Status}");
         }
 
-        // Step 2: Mark loan as returned
-        // ⚠️ DANGER: This update is committed immediately without a transaction!
+        // Step 2: Mark loan as returned (within transaction)
         loan.Return();
-        await _loanRepository.UpdateAsync(loan, null, cancellationToken);
+        await _loanRepository.UpdateAsync(loan, transaction, cancellationToken);
 
-        // ⚠️ CRITICAL PROBLEM: If the book update below fails (step 3),
-        // the loan is already marked as returned (step 2).
-        // The book's available copies won't be incremented!
-
-        // Step 3: Increment book available copies
-        var book = await _bookRepository.GetByIdAsync(loan.BookId, cancellationToken);
-        if (book == null)
+        // Step 3: Atomically increment book available copies (within transaction)
+        var bookReturned = await _bookRepository.ReturnCopyAsync(loan.BookId, transaction, cancellationToken);
+        if (!bookReturned)
         {
             throw new InvalidOperationException($"Book with ID {loan.BookId} not found.");
         }
-
-        // If this fails, the loan is marked returned but book copies weren't incremented!
-        book.ReturnCopy();
-        await _bookRepository.UpdateAsync(book, null, cancellationToken);
 
         return loan;
     }
 
     /// <summary>
     /// Renews a loan by extending the due date.
-    /// This is a single-step operation, so it doesn't demonstrate the transaction problem as clearly.
+    ///
+    /// While this is a single-step operation (only updates one table),
+    /// we still use a transaction for consistency and to follow best practices.
+    /// In a real application, you might add audit logging or other side effects
+    /// that would require transaction coordination.
+    ///
+    /// Transaction commit/rollback is handled by the caller at the top level.
     /// </summary>
-    public async Task<Loan> RenewLoanAsync(int loanId, CancellationToken cancellationToken = default)
+    public async Task<Loan> RenewLoanAsync(int loanId, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
-        var loan = await _loanRepository.GetByIdAsync(loanId, cancellationToken);
+        // Get loan and validate (within transaction)
+        var loan = await _loanRepository.GetByIdAsync(loanId, transaction, cancellationToken);
         if (loan == null)
         {
             throw new InvalidOperationException($"Loan with ID {loanId} not found.");
@@ -172,34 +156,34 @@ public class LoanService
             throw new InvalidOperationException($"Only active loans can be renewed. Current status: {loan.Status}");
         }
 
-        // Check renewal limit
-        const int maxRenewals = 3;
-        if (loan.RenewalCount >= maxRenewals)
-        {
-            throw new InvalidOperationException($"Loan has reached the maximum number of renewals ({maxRenewals}).");
-        }
-
         // Extend due date by 14 days
+        // Entity validates renewal limits and other business rules
         loan.Renew(14);
-        await _loanRepository.UpdateAsync(loan, null, cancellationToken);
+        await _loanRepository.UpdateAsync(loan, transaction, cancellationToken);
 
         return loan;
     }
 
     /// <summary>
     /// Gets all active loans for a member.
+    ///
+    /// Transaction commit/rollback is handled by the caller at the top level.
     /// </summary>
-    public async Task<List<Loan>> GetActiveLoansByMemberAsync(int memberId, CancellationToken cancellationToken = default)
+    public async Task<List<Loan>> GetActiveLoansByMemberAsync(int memberId, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
-        return await _loanRepository.GetActiveLoansByMemberIdAsync(memberId, cancellationToken);
+        var loans = await _loanRepository.GetActiveLoansByMemberIdAsync(memberId, transaction, cancellationToken);
+        return loans;
     }
 
     /// <summary>
     /// Gets all overdue loans.
+    ///
+    /// Transaction commit/rollback is handled by the caller at the top level.
     /// </summary>
-    public async Task<List<Loan>> GetOverdueLoansAsync(CancellationToken cancellationToken = default)
+    public async Task<List<Loan>> GetOverdueLoansAsync(SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
-        return await _loanRepository.GetOverdueLoansAsync(cancellationToken);
+        var loans = await _loanRepository.GetOverdueLoansAsync(transaction, cancellationToken);
+        return loans;
     }
 
     /// <summary>

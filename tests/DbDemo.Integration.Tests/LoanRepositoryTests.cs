@@ -41,12 +41,12 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
 
     private async Task<(Member member, Book book)> CreateTestMemberAndBook()
     {
-        var category = await _categoryRepository.CreateAsync(new Category("Test Category"));
-        var member = await _memberRepository.CreateAsync(
-            new Member("MEM001", "Test", "User", "test@example.com", DateTime.Now.AddYears(-25))
+        var category = await _fixture.WithTransactionAsync(tx => _categoryRepository.CreateAsync(new Category("Test Category"), tx));
+        var member = await _fixture.WithTransactionAsync(tx => _memberRepository.CreateAsync(
+            new Member("MEM001", "Test", "User", "test@example.com", DateTime.Now.AddYears(-25)), tx)
         );
-        var book = await _bookRepository.CreateAsync(
-            new Book("978-1234567890", "Test Book", category.Id, totalCopies: 1)
+        var book = await _fixture.WithTransactionAsync(tx => _bookRepository.CreateAsync(
+            new Book("978-1234567890", "Test Book", category.Id, totalCopies: 1), tx)
         );
         return (member, book);
     }
@@ -59,7 +59,7 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         var loan = Loan.Create(member.Id, book.Id);
 
         // Act
-        var createdLoan = await _repository.CreateAsync(loan);
+        var createdLoan = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
 
         // Assert
         Assert.NotNull(createdLoan);
@@ -76,10 +76,10 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         // Arrange
         var (member, book) = await CreateTestMemberAndBook();
         var loan = Loan.Create(member.Id, book.Id);
-        var created = await _repository.CreateAsync(loan);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(created.Id);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
 
         // Assert
         Assert.NotNull(retrieved);
@@ -95,7 +95,7 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         var nonExistentId = 99999;
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(nonExistentId);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(nonExistentId, tx));
 
         // Assert
         Assert.Null(retrieved);
@@ -111,13 +111,13 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         for (int i = 0; i < 5; i++)
         {
             var loan = Loan.Create(member.Id, book.Id);
-            await _repository.CreateAsync(loan);
+            await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
             // Small delay to ensure different timestamps
             await Task.Delay(10);
         }
 
         // Act - Get page 1 with 3 items
-        var page1 = await _repository.GetPagedAsync(pageNumber: 1, pageSize: 3);
+        var page1 = await _fixture.WithTransactionAsync(tx => _repository.GetPagedAsync(pageNumber: 1, pageSize: 3, tx));
 
         // Assert
         Assert.NotNull(page1);
@@ -133,17 +133,17 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
 
         // Create active loan
         var activeLoan = Loan.Create(member.Id, book.Id);
-        await _repository.CreateAsync(activeLoan);
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(activeLoan, tx));
 
         // Create and return a loan
         var returnedLoan = Loan.Create(member.Id, book.Id);
-        var created = await _repository.CreateAsync(returnedLoan);
-        var toReturn = await _repository.GetByIdAsync(created.Id);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(returnedLoan, tx));
+        var toReturn = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         toReturn!.Return();
-        await _repository.UpdateAsync(toReturn);
+        await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toReturn, tx));
 
         // Act
-        var activeLoans = await _repository.GetActiveLoansByMemberIdAsync(member.Id);
+        var activeLoans = await _fixture.WithTransactionAsync(tx => _repository.GetActiveLoansByMemberIdAsync(member.Id, tx));
 
         // Assert
         Assert.NotNull(activeLoans);
@@ -170,10 +170,10 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         borrowedAtProperty?.SetValue(overdueLoan, pastDate);
         dueDateProperty?.SetValue(overdueLoan, pastDate.AddDays(5)); // Due 5 days ago
 
-        await _repository.CreateAsync(overdueLoan);
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(overdueLoan, tx));
 
         // Act
-        var overdueLoans = await _repository.GetOverdueLoansAsync();
+        var overdueLoans = await _fixture.WithTransactionAsync(tx => _repository.GetOverdueLoansAsync(tx));
 
         // Assert
         Assert.NotNull(overdueLoans);
@@ -199,15 +199,15 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         borrowedAtProperty?.SetValue(loan, pastDate);
         dueDateProperty?.SetValue(loan, pastDate.AddDays(5)); // Due 5 days ago
 
-        var created = await _repository.CreateAsync(loan);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
 
         // Return the loan
-        var toReturn = await _repository.GetByIdAsync(created.Id);
+        var toReturn = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         toReturn!.Return();
-        await _repository.UpdateAsync(toReturn);
+        await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toReturn, tx));
 
         // Act
-        var overdueLoans = await _repository.GetOverdueLoansAsync();
+        var overdueLoans = await _fixture.WithTransactionAsync(tx => _repository.GetOverdueLoansAsync(tx));
 
         // Assert - Should be empty because the loan was returned
         Assert.NotNull(overdueLoans);
@@ -224,18 +224,18 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         for (int i = 0; i < 3; i++)
         {
             var loan = Loan.Create(member.Id, book.Id);
-            await _repository.CreateAsync(loan);
+            await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
         }
 
         // Create another member and loan to ensure filtering works
-        var otherMember = await _memberRepository.CreateAsync(
-            new Member("MEM002", "Other", "User", "other@example.com", DateTime.Now.AddYears(-30))
+        var otherMember = await _fixture.WithTransactionAsync(tx => _memberRepository.CreateAsync(
+            new Member("MEM002", "Other", "User", "other@example.com", DateTime.Now.AddYears(-30)), tx)
         );
         var otherLoan = Loan.Create(otherMember.Id, book.Id);
-        await _repository.CreateAsync(otherLoan);
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(otherLoan, tx));
 
         // Act
-        var memberLoans = await _repository.GetLoanHistoryByMemberIdAsync(member.Id);
+        var memberLoans = await _fixture.WithTransactionAsync(tx => _repository.GetLoanHistoryByMemberIdAsync(member.Id, tx));
 
         // Assert
         Assert.NotNull(memberLoans);
@@ -253,19 +253,19 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         for (int i = 0; i < 3; i++)
         {
             var loan = Loan.Create(member.Id, book.Id);
-            await _repository.CreateAsync(loan);
+            await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
         }
 
         // Create another book and loan to ensure filtering works
-        var category = await _categoryRepository.GetByIdAsync(1);
-        var otherBook = await _bookRepository.CreateAsync(
-            new Book("978-0987654321", "Other Book", book.CategoryId, totalCopies: 1)
+        var category = await _fixture.WithTransactionAsync(tx => _categoryRepository.GetByIdAsync(1, tx));
+        var otherBook = await _fixture.WithTransactionAsync(tx => _bookRepository.CreateAsync(
+            new Book("978-0987654321", "Other Book", book.CategoryId, totalCopies: 1), tx)
         );
         var otherLoan = Loan.Create(member.Id, otherBook.Id);
-        await _repository.CreateAsync(otherLoan);
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(otherLoan, tx));
 
         // Act
-        var bookLoans = await _repository.GetLoanHistoryByBookIdAsync(book.Id);
+        var bookLoans = await _fixture.WithTransactionAsync(tx => _repository.GetLoanHistoryByBookIdAsync(book.Id, tx));
 
         // Assert
         Assert.NotNull(bookLoans);
@@ -279,12 +279,12 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         // Arrange
         var (member, book) = await CreateTestMemberAndBook();
 
-        await _repository.CreateAsync(Loan.Create(member.Id, book.Id));
-        await _repository.CreateAsync(Loan.Create(member.Id, book.Id));
-        await _repository.CreateAsync(Loan.Create(member.Id, book.Id));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(Loan.Create(member.Id, book.Id), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(Loan.Create(member.Id, book.Id), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(Loan.Create(member.Id, book.Id), tx));
 
         // Act
-        var count = await _repository.GetCountAsync();
+        var count = await _fixture.WithTransactionAsync(tx => _repository.GetCountAsync(status: null, tx));
 
         // Assert
         Assert.Equal(3, count);
@@ -297,19 +297,19 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         var (member, book) = await CreateTestMemberAndBook();
 
         // Create 2 active loans
-        await _repository.CreateAsync(Loan.Create(member.Id, book.Id));
-        await _repository.CreateAsync(Loan.Create(member.Id, book.Id));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(Loan.Create(member.Id, book.Id), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(Loan.Create(member.Id, book.Id), tx));
 
         // Create 1 returned loan
         var returnedLoan = Loan.Create(member.Id, book.Id);
-        var created = await _repository.CreateAsync(returnedLoan);
-        var toReturn = await _repository.GetByIdAsync(created.Id);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(returnedLoan, tx));
+        var toReturn = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         toReturn!.Return();
-        await _repository.UpdateAsync(toReturn);
+        await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toReturn, tx));
 
         // Act
-        var activeCount = await _repository.GetCountAsync(LoanStatus.Active);
-        var returnedCount = await _repository.GetCountAsync(LoanStatus.Returned);
+        var activeCount = await _fixture.WithTransactionAsync(tx => _repository.GetCountAsync(LoanStatus.Active, tx));
+        var returnedCount = await _fixture.WithTransactionAsync(tx => _repository.GetCountAsync(LoanStatus.Returned, tx));
 
         // Assert
         Assert.Equal(2, activeCount);
@@ -322,21 +322,21 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         // Arrange
         var (member, book) = await CreateTestMemberAndBook();
         var loan = Loan.Create(member.Id, book.Id);
-        var created = await _repository.CreateAsync(loan);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
 
         // Get the loan and return it
-        var toReturn = await _repository.GetByIdAsync(created.Id);
+        var toReturn = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.NotNull(toReturn);
         toReturn.Return();
 
         // Act
-        var updateResult = await _repository.UpdateAsync(toReturn);
+        var updateResult = await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toReturn, tx));
 
         // Assert
         Assert.True(updateResult);
 
         // Verify the update
-        var updated = await _repository.GetByIdAsync(created.Id);
+        var updated = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.NotNull(updated);
         Assert.NotNull(updated.ReturnedAt);
         Assert.NotEqual(LoanStatus.Active, updated.Status);
@@ -348,7 +348,7 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         // Arrange
         var (member, book) = await CreateTestMemberAndBook();
         var loan = Loan.Create(member.Id, book.Id);
-        var created = await _repository.CreateAsync(loan);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
 
         // Manually set the ID to a non-existent value using reflection
         var idProperty = typeof(Loan).GetProperty("Id",
@@ -356,7 +356,7 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         idProperty?.SetValue(created, 99999);
 
         // Act
-        var updateResult = await _repository.UpdateAsync(created);
+        var updateResult = await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(created, tx));
 
         // Assert
         Assert.False(updateResult);
@@ -368,16 +368,16 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         // Arrange
         var (member, book) = await CreateTestMemberAndBook();
         var loan = Loan.Create(member.Id, book.Id);
-        var created = await _repository.CreateAsync(loan);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(loan, tx));
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(created.Id);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(created.Id, tx));
 
         // Assert
         Assert.True(deleteResult);
 
         // Verify deletion
-        var deleted = await _repository.GetByIdAsync(created.Id);
+        var deleted = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.Null(deleted);
     }
 
@@ -388,7 +388,7 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
         var nonExistentId = 99999;
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(nonExistentId);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(nonExistentId, tx));
 
         // Assert
         Assert.False(deleteResult);

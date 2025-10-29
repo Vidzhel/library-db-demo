@@ -13,6 +13,7 @@ namespace DbDemo.ConsoleApp.ConsoleApp;
 internal class Program
 {
     private static IConfiguration? _configuration;
+    private static string? _connectionString;
     private static IBookRepository? _bookRepository;
     private static IAuthorRepository? _authorRepository;
     private static IMemberRepository? _memberRepository;
@@ -251,6 +252,7 @@ internal class Program
                 return;
             }
 
+            _connectionString = appConnectionString;
             _bookRepository = new BookRepository(appConnectionString);
             _authorRepository = new AuthorRepository(appConnectionString);
             _memberRepository = new MemberRepository(appConnectionString);
@@ -261,6 +263,53 @@ internal class Program
         catch (Exception ex)
         {
             Console.WriteLine($"❌ Repository initialization error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Executes a repository operation within a transaction
+    /// </summary>
+    private static async Task<T> WithTransactionAsync<T>(Func<Microsoft.Data.SqlClient.SqlTransaction, Task<T>> operation, CancellationToken cancellationToken = default)
+    {
+        if (_connectionString == null)
+            throw new InvalidOperationException("Connection string not initialized");
+
+        await using var connection = new Microsoft.Data.SqlClient.SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (Microsoft.Data.SqlClient.SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var result = await operation(transaction);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Executes a repository operation within a transaction (no return value)
+    /// </summary>
+    private static async Task WithTransactionAsync(Func<Microsoft.Data.SqlClient.SqlTransaction, Task> operation, CancellationToken cancellationToken = default)
+    {
+        if (_connectionString == null)
+            throw new InvalidOperationException("Connection string not initialized");
+
+        await using var connection = new Microsoft.Data.SqlClient.SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = (Microsoft.Data.SqlClient.SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await operation(transaction);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
         }
     }
 
@@ -386,28 +435,31 @@ internal class Program
 
         try
         {
-            var pageNumber = 1;
-            var pageSize = 10;
-
-            var books = await _bookRepository!.GetPagedAsync(pageNumber, pageSize);
-            var totalCount = await _bookRepository.GetCountAsync();
-
-            if (books.Count == 0)
+            await WithTransactionAsync(async (tx) =>
             {
-                Console.WriteLine("No books found in the library.");
-                return;
-            }
+                var pageNumber = 1;
+                var pageSize = 10;
 
-            Console.WriteLine($"Showing {books.Count} of {totalCount} books (Page {pageNumber})");
-            Console.WriteLine();
+                var books = await _bookRepository!.GetPagedAsync(pageNumber, pageSize, false, tx);
+                var totalCount = await _bookRepository.GetCountAsync(false, tx);
 
-            foreach (var book in books)
-            {
-                DisplayBookSummary(book);
-            }
+                if (books.Count == 0)
+                {
+                    Console.WriteLine("No books found in the library.");
+                    return;
+                }
 
-            Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
-            Console.WriteLine($"Total: {totalCount} books");
+                Console.WriteLine($"Showing {books.Count} of {totalCount} books (Page {pageNumber})");
+                Console.WriteLine();
+
+                foreach (var book in books)
+                {
+                    DisplayBookSummary(book);
+                }
+
+                Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+                Console.WriteLine($"Total: {totalCount} books");
+            });
         }
         catch (Exception ex)
         {
@@ -469,7 +521,7 @@ internal class Program
             }
 
             // Save to database
-            var created = await _bookRepository!.CreateAsync(book);
+            var created = await WithTransactionAsync(tx => _bookRepository!.CreateAsync(book, tx));
 
             Console.WriteLine();
             Console.WriteLine("✅ Book added successfully!");
@@ -494,7 +546,7 @@ internal class Program
         {
             var id = PromptForInt("Enter Book ID");
 
-            var book = await _bookRepository!.GetByIdAsync(id);
+            var book = await WithTransactionAsync(tx => _bookRepository!.GetByIdAsync(id, tx));
 
             if (book == null)
             {
@@ -523,53 +575,56 @@ internal class Program
         {
             var id = PromptForInt("Enter Book ID to update");
 
-            var book = await _bookRepository!.GetByIdAsync(id);
-
-            if (book == null)
+            await WithTransactionAsync(async (tx) =>
             {
-                Console.WriteLine($"❌ Book with ID {id} not found.");
-                return;
-            }
+                var book = await _bookRepository!.GetByIdAsync(id, tx);
 
-            Console.WriteLine();
-            Console.WriteLine("Current book information:");
-            DisplayBookDetails(book);
-
-            Console.WriteLine();
-            Console.WriteLine("Enter new values (press Enter to keep current value):");
-
-            var title = PromptForOptionalString($"Title [{book.Title}]");
-            var subtitle = PromptForOptionalString($"Subtitle [{book.Subtitle ?? "none"}]");
-            var description = PromptForOptionalString($"Description [{book.Description ?? "none"}]");
-            var publisher = PromptForOptionalString($"Publisher [{book.Publisher ?? "none"}]");
-
-            // Update the book
-            book.UpdateDetails(
-                string.IsNullOrWhiteSpace(title) ? book.Title : title,
-                string.IsNullOrWhiteSpace(subtitle) ? book.Subtitle : subtitle,
-                string.IsNullOrWhiteSpace(description) ? book.Description : description,
-                string.IsNullOrWhiteSpace(publisher) ? book.Publisher : publisher
-            );
-
-            var updated = await _bookRepository.UpdateAsync(book);
-
-            if (updated)
-            {
-                Console.WriteLine();
-                Console.WriteLine("✅ Book updated successfully!");
-                Console.WriteLine();
-
-                // Fetch and display updated book
-                var refreshedBook = await _bookRepository.GetByIdAsync(id);
-                if (refreshedBook != null)
+                if (book == null)
                 {
-                    DisplayBookDetails(refreshedBook);
+                    Console.WriteLine($"❌ Book with ID {id} not found.");
+                    return;
                 }
-            }
-            else
-            {
-                Console.WriteLine("❌ Failed to update book.");
-            }
+
+                Console.WriteLine();
+                Console.WriteLine("Current book information:");
+                DisplayBookDetails(book);
+
+                Console.WriteLine();
+                Console.WriteLine("Enter new values (press Enter to keep current value):");
+
+                var title = PromptForOptionalString($"Title [{book.Title}]");
+                var subtitle = PromptForOptionalString($"Subtitle [{book.Subtitle ?? "none"}]");
+                var description = PromptForOptionalString($"Description [{book.Description ?? "none"}]");
+                var publisher = PromptForOptionalString($"Publisher [{book.Publisher ?? "none"}]");
+
+                // Update the book
+                book.UpdateDetails(
+                    string.IsNullOrWhiteSpace(title) ? book.Title : title,
+                    string.IsNullOrWhiteSpace(subtitle) ? book.Subtitle : subtitle,
+                    string.IsNullOrWhiteSpace(description) ? book.Description : description,
+                    string.IsNullOrWhiteSpace(publisher) ? book.Publisher : publisher
+                );
+
+                var updated = await _bookRepository.UpdateAsync(book, tx);
+
+                if (updated)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("✅ Book updated successfully!");
+                    Console.WriteLine();
+
+                    // Fetch and display updated book
+                    var refreshedBook = await _bookRepository.GetByIdAsync(id, tx);
+                    if (refreshedBook != null)
+                    {
+                        DisplayBookDetails(refreshedBook);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("❌ Failed to update book.");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -589,38 +644,41 @@ internal class Program
         {
             var id = PromptForInt("Enter Book ID to delete");
 
-            var book = await _bookRepository!.GetByIdAsync(id);
-
-            if (book == null)
+            await WithTransactionAsync(async (tx) =>
             {
-                Console.WriteLine($"❌ Book with ID {id} not found.");
-                return;
-            }
+                var book = await _bookRepository!.GetByIdAsync(id, tx);
 
-            Console.WriteLine();
-            Console.WriteLine("Book to delete:");
-            DisplayBookSummary(book);
+                if (book == null)
+                {
+                    Console.WriteLine($"❌ Book with ID {id} not found.");
+                    return;
+                }
 
-            Console.WriteLine();
-            Console.Write("Are you sure you want to delete this book? (y/n): ");
-            var confirmation = Console.ReadLine()?.Trim().ToLower();
+                Console.WriteLine();
+                Console.WriteLine("Book to delete:");
+                DisplayBookSummary(book);
 
-            if (confirmation != "y" && confirmation != "yes")
-            {
-                Console.WriteLine("❌ Deletion cancelled.");
-                return;
-            }
+                Console.WriteLine();
+                Console.Write("Are you sure you want to delete this book? (y/n): ");
+                var confirmation = Console.ReadLine()?.Trim().ToLower();
 
-            var deleted = await _bookRepository.DeleteAsync(id);
+                if (confirmation != "y" && confirmation != "yes")
+                {
+                    Console.WriteLine("❌ Deletion cancelled.");
+                    return;
+                }
 
-            if (deleted)
-            {
-                Console.WriteLine("✅ Book deleted successfully!");
-            }
-            else
-            {
-                Console.WriteLine("❌ Failed to delete book.");
-            }
+                var deleted = await _bookRepository.DeleteAsync(id, tx);
+
+                if (deleted)
+                {
+                    Console.WriteLine("✅ Book deleted successfully!");
+                }
+                else
+                {
+                    Console.WriteLine("❌ Failed to delete book.");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -640,24 +698,27 @@ internal class Program
         {
             var searchTerm = PromptForString("Enter search term");
 
-            var books = await _bookRepository!.SearchByTitleAsync(searchTerm);
-
-            if (books.Count == 0)
+            await WithTransactionAsync(async (tx) =>
             {
-                Console.WriteLine($"No books found matching '{searchTerm}'.");
-                return;
-            }
+                var books = await _bookRepository!.SearchByTitleAsync(searchTerm, tx);
 
-            Console.WriteLine();
-            Console.WriteLine($"Found {books.Count} book(s) matching '{searchTerm}':");
-            Console.WriteLine();
+                if (books.Count == 0)
+                {
+                    Console.WriteLine($"No books found matching '{searchTerm}'.");
+                    return;
+                }
 
-            foreach (var book in books)
-            {
-                DisplayBookSummary(book);
-            }
+                Console.WriteLine();
+                Console.WriteLine($"Found {books.Count} book(s) matching '{searchTerm}':");
+                Console.WriteLine();
 
-            Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+                foreach (var book in books)
+                {
+                    DisplayBookSummary(book);
+                }
+
+                Console.WriteLine("═══════════════════════════════════════════════════════════════════════════");
+            });
         }
         catch (Exception ex)
         {
@@ -703,6 +764,7 @@ internal class Program
                     _memberRepository!,
                     _loanRepository!,
                     _categoryRepository!,
+                    _connectionString!,
                     withDelays: true
                 );
 

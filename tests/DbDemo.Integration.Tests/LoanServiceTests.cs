@@ -9,7 +9,7 @@ namespace DbDemo.Integration.Tests;
 /// Integration tests for LoanService
 ///
 /// ⚠️ WARNING: These tests demonstrate the anti-pattern of multi-step operations WITHOUT transactions.
-/// The LoanService in Commit 21 deliberately omits transaction support to show the dangers.
+/// The LoanService deliberately omits transaction support to show the dangers.
 /// See docs/20-transaction-problem.md for detailed explanation.
 /// </summary>
 public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
@@ -46,7 +46,7 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
         var initialAvailableCopies = book.AvailableCopies;
 
         // Act
-        var loan = await _loanService.CreateLoanAsync(member.Id, book.Id);
+        var loan = await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book.Id, tx));
 
         // Assert
         Assert.NotNull(loan);
@@ -56,7 +56,7 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
         Assert.Equal(LoanStatus.Active, loan.Status);
 
         // Verify book inventory was decremented
-        var updatedBook = await _bookRepository.GetByIdAsync(book.Id);
+        var updatedBook = await _fixture.WithTransactionAsync(tx => _bookRepository.GetByIdAsync(book.Id, tx));
         Assert.NotNull(updatedBook);
         Assert.Equal(initialAvailableCopies - 1, updatedBook.AvailableCopies);
     }
@@ -73,11 +73,11 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
 
         // Deactivate member
         member.Deactivate();
-        await _memberRepository.UpdateAsync(member);
+        await _fixture.WithTransactionAsync(tx => _memberRepository.UpdateAsync(member, tx));
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await _loanService.CreateLoanAsync(member.Id, book.Id));
+            async () => await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book.Id, tx)));
         Assert.Contains("is not active", exception.Message);
     }
 
@@ -93,7 +93,7 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await _loanService.CreateLoanAsync(member.Id, book.Id));
+            async () => await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book.Id, tx)));
         Assert.Contains("is not available", exception.Message);
     }
 
@@ -107,11 +107,11 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
         var book = await CreateTestBookAsync(category.Id, availableCopies: 5);
         var member = await CreateTestMemberAsync();
 
-        var loan = await _loanService.CreateLoanAsync(member.Id, book.Id);
-        var availableCopiesAfterBorrow = (await _bookRepository.GetByIdAsync(book.Id))!.AvailableCopies;
+        var loan = await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book.Id, tx));
+        var availableCopiesAfterBorrow = (await _fixture.WithTransactionAsync(tx => _bookRepository.GetByIdAsync(book.Id, tx)))!.AvailableCopies;
 
         // Act
-        var returnedLoan = await _loanService.ReturnLoanAsync(loan.Id);
+        var returnedLoan = await _fixture.WithTransactionAsync(tx => _loanService.ReturnLoanAsync(loan.Id, tx));
 
         // Assert
         Assert.NotNull(returnedLoan);
@@ -119,7 +119,7 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
         Assert.Equal(LoanStatus.Returned, returnedLoan.Status);
 
         // Verify book inventory was incremented
-        var updatedBook = await _bookRepository.GetByIdAsync(book.Id);
+        var updatedBook = await _fixture.WithTransactionAsync(tx => _bookRepository.GetByIdAsync(book.Id, tx));
         Assert.NotNull(updatedBook);
         Assert.Equal(availableCopiesAfterBorrow + 1, updatedBook.AvailableCopies);
     }
@@ -134,12 +134,12 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
         var book = await CreateTestBookAsync(category.Id);
         var member = await CreateTestMemberAsync();
 
-        var loan = await _loanService.CreateLoanAsync(member.Id, book.Id);
+        var loan = await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book.Id, tx));
         var originalDueDate = loan.DueDate;
         var originalRenewalCount = loan.RenewalCount;
 
         // Act
-        var renewedLoan = await _loanService.RenewLoanAsync(loan.Id);
+        var renewedLoan = await _fixture.WithTransactionAsync(tx => _loanService.RenewLoanAsync(loan.Id, tx));
 
         // Assert
         Assert.NotNull(renewedLoan);
@@ -157,16 +157,16 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
         var book = await CreateTestBookAsync(category.Id);
         var member = await CreateTestMemberAsync();
 
-        var loan = await _loanService.CreateLoanAsync(member.Id, book.Id);
+        var loan = await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book.Id, tx));
 
         // Renew maximum number of times (default is 2 renewals allowed)
-        await _loanService.RenewLoanAsync(loan.Id);
-        await _loanService.RenewLoanAsync(loan.Id);
+        await _fixture.WithTransactionAsync(tx => _loanService.RenewLoanAsync(loan.Id, tx));
+        await _fixture.WithTransactionAsync(tx => _loanService.RenewLoanAsync(loan.Id, tx));
 
         // Act & Assert - third renewal should fail
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await _loanService.RenewLoanAsync(loan.Id));
-        Assert.Contains("reached the maximum number of renewals", exception.Message);
+            async () => await _fixture.WithTransactionAsync(tx => _loanService.RenewLoanAsync(loan.Id, tx)));
+        Assert.Contains("cannot be renewed", exception.Message);
     }
 
     [Fact]
@@ -181,15 +181,15 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
         var book3 = await CreateTestBookAsync(category.Id);
         var member = await CreateTestMemberAsync();
 
-        var loan1 = await _loanService.CreateLoanAsync(member.Id, book1.Id);
-        var loan2 = await _loanService.CreateLoanAsync(member.Id, book2.Id);
-        var loan3 = await _loanService.CreateLoanAsync(member.Id, book3.Id);
+        var loan1 = await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book1.Id, tx));
+        var loan2 = await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book2.Id, tx));
+        var loan3 = await _fixture.WithTransactionAsync(tx => _loanService.CreateLoanAsync(member.Id, book3.Id, tx));
 
         // Return one loan
-        await _loanService.ReturnLoanAsync(loan2.Id);
+        await _fixture.WithTransactionAsync(tx => _loanService.ReturnLoanAsync(loan2.Id, tx));
 
         // Act
-        var activeLoans = await _loanService.GetActiveLoansByMemberAsync(member.Id);
+        var activeLoans = await _fixture.WithTransactionAsync(tx => _loanService.GetActiveLoansByMemberAsync(member.Id, tx));
 
         // Assert
         Assert.Equal(2, activeLoans.Count);
@@ -220,7 +220,7 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
     {
         var categoryRepo = new CategoryRepository(_fixture.ConnectionString);
         var category = new Category("Test Category", "Test Description");
-        return await categoryRepo.CreateAsync(category);
+        return await _fixture.WithTransactionAsync(tx => categoryRepo.CreateAsync(category, tx));
     }
 
     private async Task<Book> CreateTestBookAsync(int categoryId, int availableCopies = 5)
@@ -231,7 +231,7 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
             categoryId: categoryId,
             totalCopies: availableCopies);
 
-        return await _bookRepository.CreateAsync(book);
+        return await _fixture.WithTransactionAsync(tx => _bookRepository.CreateAsync(book, tx));
     }
 
     private async Task<Member> CreateTestMemberAsync()
@@ -243,7 +243,7 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
             email: $"test{Guid.NewGuid():N}@example.com",
             dateOfBirth: DateTime.UtcNow.AddYears(-30));
 
-        return await _memberRepository.CreateAsync(member);
+        return await _fixture.WithTransactionAsync(tx => _memberRepository.CreateAsync(member, tx));
     }
 
     #endregion

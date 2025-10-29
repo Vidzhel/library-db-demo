@@ -8,17 +8,18 @@ namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 /// ADO.NET implementation of ICategoryRepository
 /// Demonstrates proper parameterized queries, resource disposal, and async patterns
 /// Handles hierarchical category structure
+/// All operations require an active transaction for consistency and atomicity
 /// </summary>
 public class CategoryRepository : ICategoryRepository
 {
-    private readonly string _connectionString;
-
+    // Constructor kept for backward compatibility with demos that instantiate this class directly
+    // Connection string is not used as all operations now require explicit transactions
     public CategoryRepository(string connectionString)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        // Connection string parameter ignored - all operations use transactions
     }
 
-    public async Task<Category> CreateAsync(Category category, CancellationToken cancellationToken = default)
+    public async Task<Category> CreateAsync(Category category, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             INSERT INTO Categories (
@@ -29,19 +30,18 @@ public class CategoryRepository : ICategoryRepository
                 @Name, @Description, @ParentCategoryId, @CreatedAt, @UpdatedAt
             );";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         AddCategoryParameters(command, category);
 
         var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
 
-        return await GetByIdAsync(newId, cancellationToken)
+        return await GetByIdAsync(newId, transaction, cancellationToken)
             ?? throw new InvalidOperationException("Failed to retrieve newly created category");
     }
 
-    public async Task<Category?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<Category?> GetByIdAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT
@@ -49,10 +49,9 @@ public class CategoryRepository : ICategoryRepository
             FROM Categories
             WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Id", SqlDbType.Int).Value = id;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -65,7 +64,7 @@ public class CategoryRepository : ICategoryRepository
         return null;
     }
 
-    public async Task<List<Category>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<List<Category>> GetAllAsync(SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT
@@ -73,10 +72,9 @@ public class CategoryRepository : ICategoryRepository
             FROM Categories
             ORDER BY Name;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
@@ -89,7 +87,7 @@ public class CategoryRepository : ICategoryRepository
         return categories;
     }
 
-    public async Task<List<Category>> GetTopLevelCategoriesAsync(CancellationToken cancellationToken = default)
+    public async Task<List<Category>> GetTopLevelCategoriesAsync(SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT
@@ -98,10 +96,9 @@ public class CategoryRepository : ICategoryRepository
             WHERE ParentCategoryId IS NULL
             ORDER BY Name;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
@@ -114,7 +111,7 @@ public class CategoryRepository : ICategoryRepository
         return categories;
     }
 
-    public async Task<List<Category>> GetChildCategoriesAsync(int parentId, CancellationToken cancellationToken = default)
+    public async Task<List<Category>> GetChildCategoriesAsync(int parentId, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT
@@ -123,10 +120,9 @@ public class CategoryRepository : ICategoryRepository
             WHERE ParentCategoryId = @ParentId
             ORDER BY Name;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@ParentId", SqlDbType.Int).Value = parentId;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -140,20 +136,19 @@ public class CategoryRepository : ICategoryRepository
         return categories;
     }
 
-    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
+    public async Task<int> GetCountAsync(SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = "SELECT COUNT(*) FROM Categories;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
 
         var count = (int)await command.ExecuteScalarAsync(cancellationToken);
         return count;
     }
 
-    public async Task<bool> UpdateAsync(Category category, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(Category category, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             UPDATE Categories
@@ -164,10 +159,9 @@ public class CategoryRepository : ICategoryRepository
                 UpdatedAt = @UpdatedAt
             WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         AddCategoryParameters(command, category);
         command.Parameters.Add("@Id", SqlDbType.Int).Value = category.Id;
 
@@ -175,15 +169,14 @@ public class CategoryRepository : ICategoryRepository
         return rowsAffected > 0;
     }
 
-    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         // Hard delete - will fail if category has children or books due to FK constraints
         const string sql = "DELETE FROM Categories WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Id", SqlDbType.Int).Value = id;
 
         try

@@ -36,7 +36,7 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         var author = new Author("Robert", "Martin", "bob@cleancode.com");
 
         // Act
-        var createdAuthor = await _repository.CreateAsync(author);
+        var createdAuthor = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(author, tx));
 
         // Assert
         Assert.NotNull(createdAuthor);
@@ -51,10 +51,10 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var author = new Author("Erich", "Gamma");
-        var created = await _repository.CreateAsync(author);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(author, tx));
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(created.Id);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
 
         // Assert
         Assert.NotNull(retrieved);
@@ -70,7 +70,7 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         var nonExistentId = 99999;
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(nonExistentId);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(nonExistentId, tx));
 
         // Assert
         Assert.Null(retrieved);
@@ -81,10 +81,10 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var author = new Author("Martin", "Fowler", "martin@refactoring.com");
-        await _repository.CreateAsync(author);
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(author, tx));
 
         // Act
-        var retrieved = await _repository.GetByEmailAsync("martin@refactoring.com");
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByEmailAsync("martin@refactoring.com", tx));
 
         // Assert
         Assert.NotNull(retrieved);
@@ -100,7 +100,7 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         var nonExistentEmail = "nonexistent@test.com";
 
         // Act
-        var retrieved = await _repository.GetByEmailAsync(nonExistentEmail);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByEmailAsync(nonExistentEmail, tx));
 
         // Assert
         Assert.Null(retrieved);
@@ -110,14 +110,14 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task GetPagedAsync_ShouldReturnPagedResults()
     {
         // Arrange - Create 5 authors
-        await _repository.CreateAsync(new Author("Alice", "Anderson"));
-        await _repository.CreateAsync(new Author("Bob", "Brown"));
-        await _repository.CreateAsync(new Author("Charlie", "Clark"));
-        await _repository.CreateAsync(new Author("David", "Davis"));
-        await _repository.CreateAsync(new Author("Eve", "Evans"));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Alice", "Anderson"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Bob", "Brown"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Charlie", "Clark"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("David", "Davis"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Eve", "Evans"), tx));
 
         // Act - Get page 1 with 3 items
-        var page1 = await _repository.GetPagedAsync(pageNumber: 1, pageSize: 3);
+        var page1 = await _fixture.WithTransactionAsync(tx => _repository.GetPagedAsync(pageNumber: 1, pageSize: 3, tx));
 
         // Assert
         Assert.NotNull(page1);
@@ -132,14 +132,14 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task GetPagedAsync_SecondPage_ShouldReturnCorrectResults()
     {
         // Arrange
-        await _repository.CreateAsync(new Author("Alice", "Anderson"));
-        await _repository.CreateAsync(new Author("Bob", "Brown"));
-        await _repository.CreateAsync(new Author("Charlie", "Clark"));
-        await _repository.CreateAsync(new Author("David", "Davis"));
-        await _repository.CreateAsync(new Author("Eve", "Evans"));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Alice", "Anderson"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Bob", "Brown"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Charlie", "Clark"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("David", "Davis"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Eve", "Evans"), tx));
 
         // Act - Get page 2 with 3 items
-        var page2 = await _repository.GetPagedAsync(pageNumber: 2, pageSize: 3);
+        var page2 = await _fixture.WithTransactionAsync(tx => _repository.GetPagedAsync(pageNumber: 2, pageSize: 3, tx));
 
         // Assert
         Assert.NotNull(page2);
@@ -152,12 +152,12 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task SearchByNameAsync_ByFirstName_ShouldReturnMatchingAuthors()
     {
         // Arrange
-        await _repository.CreateAsync(new Author("Robert", "Martin"));
-        await _repository.CreateAsync(new Author("Martin", "Fowler"));
-        await _repository.CreateAsync(new Author("Eric", "Evans"));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Robert", "Martin"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Martin", "Fowler"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Eric", "Evans"), tx));
 
         // Act
-        var results = await _repository.SearchByNameAsync("Martin");
+        var results = await _fixture.WithTransactionAsync(tx => _repository.SearchByNameAsync("Martin", tx));
 
         // Assert
         Assert.NotNull(results);
@@ -170,12 +170,12 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task SearchByNameAsync_ByLastName_ShouldReturnMatchingAuthors()
     {
         // Arrange
-        await _repository.CreateAsync(new Author("Robert", "Martin"));
-        await _repository.CreateAsync(new Author("Martin", "Fowler"));
-        await _repository.CreateAsync(new Author("Eric", "Evans"));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Robert", "Martin"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Martin", "Fowler"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Eric", "Evans"), tx));
 
         // Act
-        var results = await _repository.SearchByNameAsync("Fowler");
+        var results = await _fixture.WithTransactionAsync(tx => _repository.SearchByNameAsync("Fowler", tx));
 
         // Assert
         Assert.NotNull(results);
@@ -188,11 +188,11 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task SearchByNameAsync_PartialMatch_ShouldReturnMatchingAuthors()
     {
         // Arrange
-        await _repository.CreateAsync(new Author("Robert", "Martin"));
-        await _repository.CreateAsync(new Author("Martin", "Fowler"));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Robert", "Martin"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Martin", "Fowler"), tx));
 
         // Act
-        var results = await _repository.SearchByNameAsync("Mar");
+        var results = await _fixture.WithTransactionAsync(tx => _repository.SearchByNameAsync("Mar", tx));
 
         // Assert
         Assert.NotNull(results);
@@ -203,12 +203,12 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task GetCountAsync_ShouldReturnTotalCount()
     {
         // Arrange
-        await _repository.CreateAsync(new Author("Author", "One"));
-        await _repository.CreateAsync(new Author("Author", "Two"));
-        await _repository.CreateAsync(new Author("Author", "Three"));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Author", "One"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Author", "Two"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Author("Author", "Three"), tx));
 
         // Act
-        var count = await _repository.GetCountAsync();
+        var count = await _fixture.WithTransactionAsync(tx => _repository.GetCountAsync(tx));
 
         // Assert
         Assert.Equal(3, count);
@@ -219,22 +219,22 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var author = new Author("Robert", "Martin", "old@email.com");
-        var created = await _repository.CreateAsync(author);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(author, tx));
 
         // Get the author to update it
-        var toUpdate = await _repository.GetByIdAsync(created.Id);
+        var toUpdate = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.NotNull(toUpdate);
 
         toUpdate.UpdateDetails("Robert", "C. Martin", "new@email.com");
 
         // Act
-        var updateResult = await _repository.UpdateAsync(toUpdate);
+        var updateResult = await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toUpdate, tx));
 
         // Assert
         Assert.True(updateResult);
 
         // Verify the update
-        var updated = await _repository.GetByIdAsync(created.Id);
+        var updated = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.NotNull(updated);
         Assert.Equal("C. Martin", updated.LastName);
         Assert.Equal("new@email.com", updated.Email);
@@ -245,7 +245,7 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var author = new Author("Test", "Author");
-        var created = await _repository.CreateAsync(author);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(author, tx));
 
         // Manually set the ID to a non-existent value using reflection
         var idProperty = typeof(Author).GetProperty("Id",
@@ -253,7 +253,7 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         idProperty?.SetValue(created, 99999);
 
         // Act
-        var updateResult = await _repository.UpdateAsync(created);
+        var updateResult = await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(created, tx));
 
         // Assert
         Assert.False(updateResult);
@@ -264,16 +264,16 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var author = new Author("ToDelete", "Author");
-        var created = await _repository.CreateAsync(author);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(author, tx));
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(created.Id);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(created.Id, tx));
 
         // Assert
         Assert.True(deleteResult);
 
         // Verify deletion
-        var deleted = await _repository.GetByIdAsync(created.Id);
+        var deleted = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.Null(deleted);
     }
 
@@ -284,7 +284,7 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         var nonExistentId = 99999;
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(nonExistentId);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(nonExistentId, tx));
 
         // Assert
         Assert.False(deleteResult);

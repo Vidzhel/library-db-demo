@@ -42,7 +42,7 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         );
 
         // Act
-        var createdMember = await _repository.CreateAsync(member);
+        var createdMember = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(member, tx));
 
         // Assert
         Assert.NotNull(createdMember);
@@ -59,10 +59,10 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var member = new Member("MEM002", "Jane", "Smith", "jane@example.com", new DateTime(1985, 3, 20));
-        var created = await _repository.CreateAsync(member);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(member, tx));
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(created.Id);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
 
         // Assert
         Assert.NotNull(retrieved);
@@ -78,7 +78,7 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         var nonExistentId = 99999;
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(nonExistentId);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(nonExistentId, tx));
 
         // Assert
         Assert.Null(retrieved);
@@ -89,10 +89,10 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var member = new Member("MEM003", "Bob", "Johnson", "bob@example.com", new DateTime(1992, 7, 10));
-        await _repository.CreateAsync(member);
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(member, tx));
 
         // Act
-        var retrieved = await _repository.GetByMembershipNumberAsync("MEM003");
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByMembershipNumberAsync("MEM003", tx));
 
         // Assert
         Assert.NotNull(retrieved);
@@ -107,7 +107,7 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         var nonExistentNumber = "NONEXISTENT";
 
         // Act
-        var retrieved = await _repository.GetByMembershipNumberAsync(nonExistentNumber);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByMembershipNumberAsync(nonExistentNumber, tx));
 
         // Assert
         Assert.Null(retrieved);
@@ -118,10 +118,10 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var member = new Member("MEM004", "Alice", "Brown", "alice@example.com", new DateTime(1988, 11, 25));
-        await _repository.CreateAsync(member);
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(member, tx));
 
         // Act - Email should be case-insensitive
-        var retrieved = await _repository.GetByEmailAsync("ALICE@EXAMPLE.COM");
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByEmailAsync("ALICE@EXAMPLE.COM", tx));
 
         // Assert
         Assert.NotNull(retrieved);
@@ -136,7 +136,7 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         var nonExistentEmail = "nonexistent@example.com";
 
         // Act
-        var retrieved = await _repository.GetByEmailAsync(nonExistentEmail);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByEmailAsync(nonExistentEmail, tx));
 
         // Assert
         Assert.Null(retrieved);
@@ -146,14 +146,14 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task GetPagedAsync_ShouldReturnPagedResults()
     {
         // Arrange - Create 5 members
-        await _repository.CreateAsync(new Member("MEM101", "Alice", "Anderson", "alice.a@example.com", DateTime.Now.AddYears(-30)));
-        await _repository.CreateAsync(new Member("MEM102", "Bob", "Brown", "bob.b@example.com", DateTime.Now.AddYears(-25)));
-        await _repository.CreateAsync(new Member("MEM103", "Charlie", "Clark", "charlie.c@example.com", DateTime.Now.AddYears(-35)));
-        await _repository.CreateAsync(new Member("MEM104", "David", "Davis", "david.d@example.com", DateTime.Now.AddYears(-28)));
-        await _repository.CreateAsync(new Member("MEM105", "Eve", "Evans", "eve.e@example.com", DateTime.Now.AddYears(-32)));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM101", "Alice", "Anderson", "alice.a@example.com", DateTime.Now.AddYears(-30)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM102", "Bob", "Brown", "bob.b@example.com", DateTime.Now.AddYears(-25)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM103", "Charlie", "Clark", "charlie.c@example.com", DateTime.Now.AddYears(-35)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM104", "David", "Davis", "david.d@example.com", DateTime.Now.AddYears(-28)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM105", "Eve", "Evans", "eve.e@example.com", DateTime.Now.AddYears(-32)), tx));
 
         // Act - Get page 1 with 3 items
-        var page1 = await _repository.GetPagedAsync(pageNumber: 1, pageSize: 3);
+        var page1 = await _fixture.WithTransactionAsync(tx => _repository.GetPagedAsync(pageNumber: 1, pageSize: 3, activeOnly: true, tx));
 
         // Assert
         Assert.NotNull(page1);
@@ -169,18 +169,18 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var activeMember = new Member("MEM201", "Active", "User", "active@example.com", DateTime.Now.AddYears(-25));
-        await _repository.CreateAsync(activeMember);
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(activeMember, tx));
 
         var inactiveMember = new Member("MEM202", "Inactive", "User", "inactive@example.com", DateTime.Now.AddYears(-30));
-        var created = await _repository.CreateAsync(inactiveMember);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(inactiveMember, tx));
 
         // Deactivate the second member
-        var toDeactivate = await _repository.GetByIdAsync(created.Id);
+        var toDeactivate = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         toDeactivate!.Deactivate();
-        await _repository.UpdateAsync(toDeactivate);
+        await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toDeactivate, tx));
 
         // Act
-        var activeMembers = await _repository.GetPagedAsync(pageNumber: 1, pageSize: 10, activeOnly: true);
+        var activeMembers = await _fixture.WithTransactionAsync(tx => _repository.GetPagedAsync(pageNumber: 1, pageSize: 10, activeOnly: true, tx));
 
         // Assert
         Assert.NotNull(activeMembers);
@@ -192,12 +192,12 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task SearchByNameAsync_ByFirstName_ShouldReturnMatchingMembers()
     {
         // Arrange
-        await _repository.CreateAsync(new Member("MEM301", "John", "Smith", "john.s@example.com", DateTime.Now.AddYears(-30)));
-        await _repository.CreateAsync(new Member("MEM302", "John", "Doe", "john.d@example.com", DateTime.Now.AddYears(-25)));
-        await _repository.CreateAsync(new Member("MEM303", "Jane", "Williams", "jane@example.com", DateTime.Now.AddYears(-28)));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM301", "John", "Smith", "john.s@example.com", DateTime.Now.AddYears(-30)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM302", "John", "Doe", "john.d@example.com", DateTime.Now.AddYears(-25)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM303", "Jane", "Williams", "jane@example.com", DateTime.Now.AddYears(-28)), tx));
 
         // Act
-        var results = await _repository.SearchByNameAsync("John");
+        var results = await _fixture.WithTransactionAsync(tx => _repository.SearchByNameAsync("John", tx));
 
         // Assert
         Assert.NotNull(results);
@@ -209,12 +209,12 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task SearchByNameAsync_ByLastName_ShouldReturnMatchingMembers()
     {
         // Arrange
-        await _repository.CreateAsync(new Member("MEM401", "John", "Smith", "john@example.com", DateTime.Now.AddYears(-30)));
-        await _repository.CreateAsync(new Member("MEM402", "Jane", "Smith", "jane@example.com", DateTime.Now.AddYears(-25)));
-        await _repository.CreateAsync(new Member("MEM403", "Bob", "Johnson", "bob@example.com", DateTime.Now.AddYears(-28)));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM401", "John", "Smith", "john@example.com", DateTime.Now.AddYears(-30)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM402", "Jane", "Smith", "jane@example.com", DateTime.Now.AddYears(-25)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM403", "Bob", "Johnson", "bob@example.com", DateTime.Now.AddYears(-28)), tx));
 
         // Act
-        var results = await _repository.SearchByNameAsync("Smith");
+        var results = await _fixture.WithTransactionAsync(tx => _repository.SearchByNameAsync("Smith", tx));
 
         // Assert
         Assert.NotNull(results);
@@ -226,12 +226,12 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task GetCountAsync_ShouldReturnTotalCount()
     {
         // Arrange
-        await _repository.CreateAsync(new Member("MEM501", "Member", "One", "one@example.com", DateTime.Now.AddYears(-30)));
-        await _repository.CreateAsync(new Member("MEM502", "Member", "Two", "two@example.com", DateTime.Now.AddYears(-25)));
-        await _repository.CreateAsync(new Member("MEM503", "Member", "Three", "three@example.com", DateTime.Now.AddYears(-28)));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM501", "Member", "One", "one@example.com", DateTime.Now.AddYears(-30)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM502", "Member", "Two", "two@example.com", DateTime.Now.AddYears(-25)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM503", "Member", "Three", "three@example.com", DateTime.Now.AddYears(-28)), tx));
 
         // Act
-        var count = await _repository.GetCountAsync();
+        var count = await _fixture.WithTransactionAsync(tx => _repository.GetCountAsync(activeOnly: true, tx));
 
         // Assert
         Assert.Equal(3, count);
@@ -241,16 +241,16 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public async Task GetCountAsync_ActiveOnly_ShouldReturnActiveCount()
     {
         // Arrange
-        await _repository.CreateAsync(new Member("MEM601", "Active", "One", "active1@example.com", DateTime.Now.AddYears(-30)));
-        await _repository.CreateAsync(new Member("MEM602", "Active", "Two", "active2@example.com", DateTime.Now.AddYears(-25)));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM601", "Active", "One", "active1@example.com", DateTime.Now.AddYears(-30)), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM602", "Active", "Two", "active2@example.com", DateTime.Now.AddYears(-25)), tx));
 
-        var inactive = await _repository.CreateAsync(new Member("MEM603", "Inactive", "One", "inactive@example.com", DateTime.Now.AddYears(-28)));
-        var toDeactivate = await _repository.GetByIdAsync(inactive.Id);
+        var inactive = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Member("MEM603", "Inactive", "One", "inactive@example.com", DateTime.Now.AddYears(-28)), tx));
+        var toDeactivate = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(inactive.Id, tx));
         toDeactivate!.Deactivate();
-        await _repository.UpdateAsync(toDeactivate);
+        await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toDeactivate, tx));
 
         // Act
-        var activeCount = await _repository.GetCountAsync(activeOnly: true);
+        var activeCount = await _fixture.WithTransactionAsync(tx => _repository.GetCountAsync(activeOnly: true, tx));
 
         // Assert
         Assert.Equal(2, activeCount);
@@ -261,22 +261,22 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var member = new Member("MEM701", "Old", "Name", "old@example.com", DateTime.Now.AddYears(-30));
-        var created = await _repository.CreateAsync(member);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(member, tx));
 
         // Get the member to update it
-        var toUpdate = await _repository.GetByIdAsync(created.Id);
+        var toUpdate = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.NotNull(toUpdate);
 
         toUpdate.UpdateContactInfo("new@example.com", "555-1234", "123 New Street");
 
         // Act
-        var updateResult = await _repository.UpdateAsync(toUpdate);
+        var updateResult = await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toUpdate, tx));
 
         // Assert
         Assert.True(updateResult);
 
         // Verify the update
-        var updated = await _repository.GetByIdAsync(created.Id);
+        var updated = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.NotNull(updated);
         Assert.Equal("new@example.com", updated.Email);
         Assert.Equal("555-1234", updated.PhoneNumber);
@@ -288,7 +288,7 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var member = new Member("MEM801", "Test", "Member", "test@example.com", DateTime.Now.AddYears(-30));
-        var created = await _repository.CreateAsync(member);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(member, tx));
 
         // Manually set the ID to a non-existent value using reflection
         var idProperty = typeof(Member).GetProperty("Id",
@@ -296,7 +296,7 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         idProperty?.SetValue(created, 99999);
 
         // Act
-        var updateResult = await _repository.UpdateAsync(created);
+        var updateResult = await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(created, tx));
 
         // Assert
         Assert.False(updateResult);
@@ -307,16 +307,16 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     {
         // Arrange
         var member = new Member("MEM901", "ToDelete", "Member", "delete@example.com", DateTime.Now.AddYears(-30));
-        var created = await _repository.CreateAsync(member);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(member, tx));
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(created.Id);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(created.Id, tx));
 
         // Assert
         Assert.True(deleteResult);
 
         // Verify deletion
-        var deleted = await _repository.GetByIdAsync(created.Id);
+        var deleted = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.Null(deleted);
     }
 
@@ -327,7 +327,7 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
         var nonExistentId = 99999;
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(nonExistentId);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(nonExistentId, tx));
 
         // Assert
         Assert.False(deleteResult);

@@ -39,7 +39,7 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
         var category = new Category("Fiction", "Fictional books");
 
         // Act
-        var createdCategory = await _repository.CreateAsync(category);
+        var createdCategory = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(category, tx));
 
         // Assert
         Assert.NotNull(createdCategory);
@@ -54,12 +54,12 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     {
         // Arrange
         var parent = new Category("Fiction");
-        var createdParent = await _repository.CreateAsync(parent);
+        var createdParent = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(parent, tx));
 
         var child = new Category("Science Fiction", "Sci-fi books", createdParent.Id);
 
         // Act
-        var createdChild = await _repository.CreateAsync(child);
+        var createdChild = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(child, tx));
 
         // Assert
         Assert.NotNull(createdChild);
@@ -73,10 +73,10 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     {
         // Arrange
         var category = new Category("Non-Fiction");
-        var created = await _repository.CreateAsync(category);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(category, tx));
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(created.Id);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
 
         // Assert
         Assert.NotNull(retrieved);
@@ -91,7 +91,7 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
         var nonExistentId = 99999;
 
         // Act
-        var retrieved = await _repository.GetByIdAsync(nonExistentId);
+        var retrieved = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(nonExistentId, tx));
 
         // Assert
         Assert.Null(retrieved);
@@ -101,12 +101,12 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     public async Task GetAllAsync_ShouldReturnAllCategories()
     {
         // Arrange
-        await _repository.CreateAsync(new Category("Fiction"));
-        await _repository.CreateAsync(new Category("Non-Fiction"));
-        await _repository.CreateAsync(new Category("Science"));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Fiction"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Non-Fiction"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Science"), tx));
 
         // Act
-        var allCategories = await _repository.GetAllAsync();
+        var allCategories = await _fixture.WithTransactionAsync(tx => _repository.GetAllAsync(tx));
 
         // Assert
         Assert.NotNull(allCategories);
@@ -121,13 +121,13 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     public async Task GetTopLevelCategoriesAsync_ShouldReturnOnlyRootCategories()
     {
         // Arrange
-        var fiction = await _repository.CreateAsync(new Category("Fiction"));
-        var nonFiction = await _repository.CreateAsync(new Category("Non-Fiction"));
-        var sciFi = await _repository.CreateAsync(new Category("Science Fiction", parentCategoryId: fiction.Id));
-        var biography = await _repository.CreateAsync(new Category("Biography", parentCategoryId: nonFiction.Id));
+        var fiction = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Fiction"), tx));
+        var nonFiction = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Non-Fiction"), tx));
+        var sciFi = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Science Fiction", parentCategoryId: fiction.Id), tx));
+        var biography = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Biography", parentCategoryId: nonFiction.Id), tx));
 
         // Act
-        var topLevel = await _repository.GetTopLevelCategoriesAsync();
+        var topLevel = await _fixture.WithTransactionAsync(tx => _repository.GetTopLevelCategoriesAsync(tx));
 
         // Assert
         Assert.NotNull(topLevel);
@@ -142,17 +142,17 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     public async Task GetChildCategoriesAsync_ShouldReturnChildrenOfParent()
     {
         // Arrange
-        var fiction = await _repository.CreateAsync(new Category("Fiction"));
-        var sciFi = await _repository.CreateAsync(new Category("Science Fiction", parentCategoryId: fiction.Id));
-        var fantasy = await _repository.CreateAsync(new Category("Fantasy", parentCategoryId: fiction.Id));
-        var horror = await _repository.CreateAsync(new Category("Horror", parentCategoryId: fiction.Id));
+        var fiction = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Fiction"), tx));
+        var sciFi = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Science Fiction", parentCategoryId: fiction.Id), tx));
+        var fantasy = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Fantasy", parentCategoryId: fiction.Id), tx));
+        var horror = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Horror", parentCategoryId: fiction.Id), tx));
 
         // Create a different parent with child
-        var nonFiction = await _repository.CreateAsync(new Category("Non-Fiction"));
-        var biography = await _repository.CreateAsync(new Category("Biography", parentCategoryId: nonFiction.Id));
+        var nonFiction = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Non-Fiction"), tx));
+        var biography = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Biography", parentCategoryId: nonFiction.Id), tx));
 
         // Act
-        var fictionChildren = await _repository.GetChildCategoriesAsync(fiction.Id);
+        var fictionChildren = await _fixture.WithTransactionAsync(tx => _repository.GetChildCategoriesAsync(fiction.Id, tx));
 
         // Assert
         Assert.NotNull(fictionChildren);
@@ -167,10 +167,10 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     public async Task GetChildCategoriesAsync_NoChildren_ShouldReturnEmptyList()
     {
         // Arrange
-        var category = await _repository.CreateAsync(new Category("Childless Category"));
+        var category = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Childless Category"), tx));
 
         // Act
-        var children = await _repository.GetChildCategoriesAsync(category.Id);
+        var children = await _fixture.WithTransactionAsync(tx => _repository.GetChildCategoriesAsync(category.Id, tx));
 
         // Assert
         Assert.NotNull(children);
@@ -181,12 +181,12 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     public async Task GetCountAsync_ShouldReturnTotalCount()
     {
         // Arrange
-        await _repository.CreateAsync(new Category("Category 1"));
-        await _repository.CreateAsync(new Category("Category 2"));
-        await _repository.CreateAsync(new Category("Category 3"));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Category 1"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Category 2"), tx));
+        await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Category 3"), tx));
 
         // Act
-        var count = await _repository.GetCountAsync();
+        var count = await _fixture.WithTransactionAsync(tx => _repository.GetCountAsync(tx));
 
         // Assert
         Assert.Equal(3, count);
@@ -197,22 +197,22 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     {
         // Arrange
         var category = new Category("Old Name", "Old description");
-        var created = await _repository.CreateAsync(category);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(category, tx));
 
         // Get the category to update it
-        var toUpdate = await _repository.GetByIdAsync(created.Id);
+        var toUpdate = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.NotNull(toUpdate);
 
         toUpdate.UpdateDetails("New Name", "New description");
 
         // Act
-        var updateResult = await _repository.UpdateAsync(toUpdate);
+        var updateResult = await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(toUpdate, tx));
 
         // Assert
         Assert.True(updateResult);
 
         // Verify the update
-        var updated = await _repository.GetByIdAsync(created.Id);
+        var updated = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.NotNull(updated);
         Assert.Equal("New Name", updated.Name);
         Assert.Equal("New description", updated.Description);
@@ -223,7 +223,7 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     {
         // Arrange
         var category = new Category("Test");
-        var created = await _repository.CreateAsync(category);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(category, tx));
 
         // Manually set the ID to a non-existent value using reflection
         var idProperty = typeof(Category).GetProperty("Id",
@@ -231,7 +231,7 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
         idProperty?.SetValue(created, 99999);
 
         // Act
-        var updateResult = await _repository.UpdateAsync(created);
+        var updateResult = await _fixture.WithTransactionAsync(tx => _repository.UpdateAsync(created, tx));
 
         // Assert
         Assert.False(updateResult);
@@ -242,16 +242,16 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     {
         // Arrange
         var category = new Category("ToDelete");
-        var created = await _repository.CreateAsync(category);
+        var created = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(category, tx));
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(created.Id);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(created.Id, tx));
 
         // Assert
         Assert.True(deleteResult);
 
         // Verify deletion
-        var deleted = await _repository.GetByIdAsync(created.Id);
+        var deleted = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(created.Id, tx));
         Assert.Null(deleted);
     }
 
@@ -262,7 +262,7 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
         var nonExistentId = 99999;
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(nonExistentId);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(nonExistentId, tx));
 
         // Assert
         Assert.False(deleteResult);
@@ -272,17 +272,17 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     public async Task DeleteAsync_CategoryWithChildren_ShouldReturnFalse()
     {
         // Arrange
-        var parent = await _repository.CreateAsync(new Category("Parent"));
-        var child = await _repository.CreateAsync(new Category("Child", parentCategoryId: parent.Id));
+        var parent = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Parent"), tx));
+        var child = await _fixture.WithTransactionAsync(tx => _repository.CreateAsync(new Category("Child", parentCategoryId: parent.Id), tx));
 
         // Act
-        var deleteResult = await _repository.DeleteAsync(parent.Id);
+        var deleteResult = await _fixture.WithTransactionAsync(tx => _repository.DeleteAsync(parent.Id, tx));
 
         // Assert - Should fail due to FK constraint
         Assert.False(deleteResult);
 
         // Verify parent still exists
-        var stillExists = await _repository.GetByIdAsync(parent.Id);
+        var stillExists = await _fixture.WithTransactionAsync(tx => _repository.GetByIdAsync(parent.Id, tx));
         Assert.NotNull(stillExists);
     }
 }

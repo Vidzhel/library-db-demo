@@ -7,17 +7,18 @@ namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 /// <summary>
 /// ADO.NET implementation of IAuthorRepository
 /// Demonstrates proper parameterized queries, resource disposal, and async patterns
+/// All operations require an active transaction for consistency and atomicity
 /// </summary>
 public class AuthorRepository : IAuthorRepository
 {
-    private readonly string _connectionString;
-
+    // Constructor kept for backward compatibility with demos that instantiate this class directly
+    // Connection string is not used as all operations now require explicit transactions
     public AuthorRepository(string connectionString)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        // Connection string parameter ignored - all operations use transactions
     }
 
-    public async Task<Author> CreateAsync(Author author, CancellationToken cancellationToken = default)
+    public async Task<Author> CreateAsync(Author author, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             INSERT INTO Authors (
@@ -30,19 +31,18 @@ public class AuthorRepository : IAuthorRepository
                 @CreatedAt, @UpdatedAt
             );";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         AddAuthorParameters(command, author);
 
         var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
 
-        return await GetByIdAsync(newId, cancellationToken)
+        return await GetByIdAsync(newId, transaction, cancellationToken)
             ?? throw new InvalidOperationException("Failed to retrieve newly created author");
     }
 
-    public async Task<Author?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<Author?> GetByIdAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT
@@ -51,10 +51,9 @@ public class AuthorRepository : IAuthorRepository
             FROM Authors
             WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Id", SqlDbType.Int).Value = id;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -67,7 +66,7 @@ public class AuthorRepository : IAuthorRepository
         return null;
     }
 
-    public async Task<Author?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+    public async Task<Author?> GetByEmailAsync(string email, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             SELECT
@@ -76,10 +75,9 @@ public class AuthorRepository : IAuthorRepository
             FROM Authors
             WHERE Email = @Email;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Email", SqlDbType.NVarChar, 255).Value = email;
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -93,8 +91,9 @@ public class AuthorRepository : IAuthorRepository
     }
 
     public async Task<List<Author>> GetPagedAsync(
-        int pageNumber = 1,
-        int pageSize = 10,
+        int pageNumber,
+        int pageSize,
+        SqlTransaction transaction,
         CancellationToken cancellationToken = default)
     {
         if (pageNumber < 1) throw new ArgumentException("Page number must be >= 1", nameof(pageNumber));
@@ -109,10 +108,9 @@ public class AuthorRepository : IAuthorRepository
             OFFSET @Offset ROWS
             FETCH NEXT @PageSize ROWS ONLY;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Offset", SqlDbType.Int).Value = (pageNumber - 1) * pageSize;
         command.Parameters.Add("@PageSize", SqlDbType.Int).Value = pageSize;
 
@@ -127,7 +125,7 @@ public class AuthorRepository : IAuthorRepository
         return authors;
     }
 
-    public async Task<List<Author>> SearchByNameAsync(string searchTerm, CancellationToken cancellationToken = default)
+    public async Task<List<Author>> SearchByNameAsync(string searchTerm, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(searchTerm))
             throw new ArgumentException("Search term cannot be empty", nameof(searchTerm));
@@ -140,10 +138,9 @@ public class AuthorRepository : IAuthorRepository
             WHERE FirstName LIKE @SearchPattern OR LastName LIKE @SearchPattern
             ORDER BY LastName, FirstName;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@SearchPattern", SqlDbType.NVarChar, 102).Value = $"%{searchTerm}%";
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -157,20 +154,19 @@ public class AuthorRepository : IAuthorRepository
         return authors;
     }
 
-    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
+    public async Task<int> GetCountAsync(SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = "SELECT COUNT(*) FROM Authors;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
 
         var count = (int)await command.ExecuteScalarAsync(cancellationToken);
         return count;
     }
 
-    public async Task<bool> UpdateAsync(Author author, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(Author author, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             UPDATE Authors
@@ -184,10 +180,9 @@ public class AuthorRepository : IAuthorRepository
                 UpdatedAt = @UpdatedAt
             WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         AddAuthorParameters(command, author);
         command.Parameters.Add("@Id", SqlDbType.Int).Value = author.Id;
 
@@ -195,15 +190,14 @@ public class AuthorRepository : IAuthorRepository
         return rowsAffected > 0;
     }
 
-    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
         // Hard delete for authors
         const string sql = "DELETE FROM Authors WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = transaction.Connection ;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(sql, connection, transaction);
         command.Parameters.Add("@Id", SqlDbType.Int).Value = id;
 
         var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
