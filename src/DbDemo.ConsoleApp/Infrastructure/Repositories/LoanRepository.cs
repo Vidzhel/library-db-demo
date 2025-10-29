@@ -17,7 +17,7 @@ public class LoanRepository : ILoanRepository
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
     }
 
-    public async Task<Loan> CreateAsync(Loan loan, CancellationToken cancellationToken = default)
+    public async Task<Loan> CreateAsync(Loan loan, SqlTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             INSERT INTO Loans (
@@ -32,16 +32,46 @@ public class LoanRepository : ILoanRepository
                 @CreatedAt, @UpdatedAt
             );";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        SqlConnection? ownedConnection = null;
+        SqlConnection connection;
 
-        await using var command = new SqlCommand(sql, connection);
-        AddLoanParameters(command, loan);
+        if (transaction != null)
+        {
+            // Use the existing connection from the transaction
+            connection = transaction.Connection
+                ?? throw new InvalidOperationException("Transaction has no associated connection");
+        }
+        else
+        {
+            // Create our own connection
+            ownedConnection = new SqlConnection(_connectionString);
+            connection = ownedConnection;
+            await connection.OpenAsync(cancellationToken);
+        }
 
-        var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
+        try
+        {
+            await using var command = new SqlCommand(sql, connection);
+            if (transaction != null)
+            {
+                command.Transaction = transaction;
+            }
 
-        return await GetByIdAsync(newId, cancellationToken)
-            ?? throw new InvalidOperationException("Failed to retrieve newly created loan");
+            AddLoanParameters(command, loan);
+
+            var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
+
+            return await GetByIdAsync(newId, cancellationToken)
+                ?? throw new InvalidOperationException("Failed to retrieve newly created loan");
+        }
+        finally
+        {
+            // Only dispose the connection if we created it
+            if (ownedConnection != null)
+            {
+                await ownedConnection.DisposeAsync();
+            }
+        }
     }
 
     public async Task<Loan?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -245,7 +275,7 @@ public class LoanRepository : ILoanRepository
         return count;
     }
 
-    public async Task<bool> UpdateAsync(Loan loan, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(Loan loan, SqlTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             UPDATE Loans
@@ -264,15 +294,45 @@ public class LoanRepository : ILoanRepository
                 UpdatedAt = @UpdatedAt
             WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        SqlConnection? ownedConnection = null;
+        SqlConnection connection;
 
-        await using var command = new SqlCommand(sql, connection);
-        AddLoanParameters(command, loan);
-        command.Parameters.Add("@Id", SqlDbType.Int).Value = loan.Id;
+        if (transaction != null)
+        {
+            // Use the existing connection from the transaction
+            connection = transaction.Connection
+                ?? throw new InvalidOperationException("Transaction has no associated connection");
+        }
+        else
+        {
+            // Create our own connection
+            ownedConnection = new SqlConnection(_connectionString);
+            connection = ownedConnection;
+            await connection.OpenAsync(cancellationToken);
+        }
 
-        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
-        return rowsAffected > 0;
+        try
+        {
+            await using var command = new SqlCommand(sql, connection);
+            if (transaction != null)
+            {
+                command.Transaction = transaction;
+            }
+
+            AddLoanParameters(command, loan);
+            command.Parameters.Add("@Id", SqlDbType.Int).Value = loan.Id;
+
+            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+            return rowsAffected > 0;
+        }
+        finally
+        {
+            // Only dispose the connection if we created it
+            if (ownedConnection != null)
+            {
+                await ownedConnection.DisposeAsync();
+            }
+        }
     }
 
     public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)

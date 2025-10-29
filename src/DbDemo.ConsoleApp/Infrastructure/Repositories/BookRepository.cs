@@ -17,7 +17,7 @@ public class BookRepository : IBookRepository
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
     }
 
-    public async Task<Book> CreateAsync(Book book, CancellationToken cancellationToken = default)
+    public async Task<Book> CreateAsync(Book book, SqlTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         // SQL with explicit column names and OUTPUT clause to get generated ID
         const string sql = @"
@@ -33,20 +33,49 @@ public class BookRepository : IBookRepository
                 @ShelfLocation, @IsDeleted, @CreatedAt, @UpdatedAt
             );";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        SqlConnection? ownedConnection = null;
+        SqlConnection connection;
 
-        await using var command = new SqlCommand(sql, connection);
+        if (transaction != null)
+        {
+            // Use the existing connection from the transaction
+            connection = transaction.Connection
+                ?? throw new InvalidOperationException("Transaction has no associated connection");
+        }
+        else
+        {
+            // Create our own connection
+            ownedConnection = new SqlConnection(_connectionString);
+            connection = ownedConnection;
+            await connection.OpenAsync(cancellationToken);
+        }
 
-        // Add parameters - this prevents SQL injection
-        AddBookParameters(command, book);
+        try
+        {
+            await using var command = new SqlCommand(sql, connection);
+            if (transaction != null)
+            {
+                command.Transaction = transaction;
+            }
 
-        // ExecuteScalar returns the OUTPUT value (new Id)
-        var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
+            // Add parameters - this prevents SQL injection
+            AddBookParameters(command, book);
 
-        // Return the book by querying it back with the new ID
-        return await GetByIdAsync(newId, cancellationToken)
-            ?? throw new InvalidOperationException("Failed to retrieve newly created book");
+            // ExecuteScalar returns the OUTPUT value (new Id)
+            var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
+
+            // Return the book by querying it back with the new ID
+            return await GetByIdAsync(newId, cancellationToken)
+                ?? throw new InvalidOperationException("Failed to retrieve newly created book");
+        }
+        finally
+        {
+            // Only dispose the connection if we created it
+            if (ownedConnection != null)
+            {
+                await ownedConnection.DisposeAsync();
+            }
+        }
     }
 
     public async Task<Book?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -217,7 +246,7 @@ public class BookRepository : IBookRepository
         return count;
     }
 
-    public async Task<bool> UpdateAsync(Book book, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(Book book, SqlTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         const string sql = @"
             UPDATE Books
@@ -238,15 +267,45 @@ public class BookRepository : IBookRepository
                 UpdatedAt = @UpdatedAt
             WHERE Id = @Id;";
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        SqlConnection? ownedConnection = null;
+        SqlConnection connection;
 
-        await using var command = new SqlCommand(sql, connection);
-        AddBookParameters(command, book);
-        command.Parameters.Add("@Id", SqlDbType.Int).Value = book.Id;
+        if (transaction != null)
+        {
+            // Use the existing connection from the transaction
+            connection = transaction.Connection
+                ?? throw new InvalidOperationException("Transaction has no associated connection");
+        }
+        else
+        {
+            // Create our own connection
+            ownedConnection = new SqlConnection(_connectionString);
+            connection = ownedConnection;
+            await connection.OpenAsync(cancellationToken);
+        }
 
-        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
-        return rowsAffected > 0;
+        try
+        {
+            await using var command = new SqlCommand(sql, connection);
+            if (transaction != null)
+            {
+                command.Transaction = transaction;
+            }
+
+            AddBookParameters(command, book);
+            command.Parameters.Add("@Id", SqlDbType.Int).Value = book.Id;
+
+            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+            return rowsAffected > 0;
+        }
+        finally
+        {
+            // Only dispose the connection if we created it
+            if (ownedConnection != null)
+            {
+                await ownedConnection.DisposeAsync();
+            }
+        }
     }
 
     public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)

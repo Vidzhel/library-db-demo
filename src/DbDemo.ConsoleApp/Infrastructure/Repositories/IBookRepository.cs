@@ -1,4 +1,5 @@
 using DbDemo.ConsoleApp.Models;
+using Microsoft.Data.SqlClient;
 
 namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 
@@ -12,9 +13,10 @@ public interface IBookRepository
     /// Creates a new book in the database
     /// </summary>
     /// <param name="book">The book to create</param>
+    /// <param name="transaction">Optional transaction to participate in</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The created book with its assigned ID</returns>
-    Task<Book> CreateAsync(Book book, CancellationToken cancellationToken = default);
+    Task<Book> CreateAsync(Book book, SqlTransaction? transaction = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves a book by its ID
@@ -74,9 +76,10 @@ public interface IBookRepository
     /// Updates an existing book
     /// </summary>
     /// <param name="book">The book with updated data</param>
+    /// <param name="transaction">Optional transaction to participate in</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if updated successfully, false if book not found</returns>
-    Task<bool> UpdateAsync(Book book, CancellationToken cancellationToken = default);
+    Task<bool> UpdateAsync(Book book, SqlTransaction? transaction = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Soft deletes a book (marks as deleted)

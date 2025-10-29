@@ -1,4 +1,5 @@
 using DbDemo.ConsoleApp.Models;
+using Microsoft.Data.SqlClient;
 
 namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 
@@ -12,9 +13,10 @@ public interface ILoanRepository
     /// Creates a new loan in the database
     /// </summary>
     /// <param name="loan">The loan to create</param>
+    /// <param name="transaction">Optional transaction to participate in</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The created loan with its assigned ID</returns>
-    Task<Loan> CreateAsync(Loan loan, CancellationToken cancellationToken = default);
+    Task<Loan> CreateAsync(Loan loan, SqlTransaction? transaction = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves a loan by its ID
@@ -79,9 +81,10 @@ public interface ILoanRepository
     /// Updates an existing loan
     /// </summary>
     /// <param name="loan">The loan with updated data</param>
+    /// <param name="transaction">Optional transaction to participate in</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if updated successfully, false if loan not found</returns>
-    Task<bool> UpdateAsync(Loan loan, CancellationToken cancellationToken = default);
+    Task<bool> UpdateAsync(Loan loan, SqlTransaction? transaction = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a loan
