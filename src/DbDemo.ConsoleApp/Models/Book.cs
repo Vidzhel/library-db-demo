@@ -6,6 +6,7 @@ public class Book
     private string _title = string.Empty;
     private int _availableCopies;
     private int _totalCopies;
+    private string? _metadataJson;
 
     private Book() { }
 
@@ -98,6 +99,18 @@ public class Book
     public DateTime UpdatedAt { get; private set; }
     public bool IsDeleted { get; private set; }
 
+    /// <summary>
+    /// Flexible metadata stored as JSON in the database.
+    /// Provides strongly-typed access to JSON data using BookMetadata DTO.
+    /// Demonstrates JSON support in SQL Server 2016+.
+    /// </summary>
+    public BookMetadata? Metadata => BookMetadata.FromJson(_metadataJson);
+
+    /// <summary>
+    /// Internal property for repository access to raw JSON string.
+    /// </summary>
+    internal string? MetadataJson => _metadataJson;
+
     // Navigation properties
     public Category? Category { get; private set; }
     public List<Author> Authors { get; private set; } = new();
@@ -126,6 +139,12 @@ public class Book
     public void UpdateShelfLocation(string location)
     {
         ShelfLocation = location;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void UpdateMetadata(BookMetadata? metadata)
+    {
+        _metadataJson = metadata?.ToJson();
         UpdatedAt = DateTime.UtcNow;
     }
 
@@ -196,7 +215,8 @@ public class Book
         string? shelfLocation,
         bool isDeleted,
         DateTime createdAt,
-        DateTime updatedAt)
+        DateTime updatedAt,
+        string? metadataJson = null)
     {
         var book = new Book();
         book.Id = id;
@@ -215,6 +235,7 @@ public class Book
         book.IsDeleted = isDeleted;
         book.CreatedAt = createdAt;
         book.UpdatedAt = updatedAt;
+        book._metadataJson = metadataJson;
         return book;
     }
 }

@@ -118,4 +118,44 @@ public interface IBookRepository
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if deleted successfully, false if book not found</returns>
     Task<bool> DeleteAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Searches for books by JSON metadata property value.
+    /// Uses JSON_VALUE() to extract and filter by specific JSON path.
+    /// Example: jsonPath = "$.genre", searchValue = "Science Fiction"
+    /// </summary>
+    /// <param name="jsonPath">JSON path expression (e.g., "$.genre", "$.series")</param>
+    /// <param name="searchValue">Value to search for</param>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of books matching the metadata criteria</returns>
+    Task<List<Book>> SearchByMetadataValueAsync(
+        string jsonPath,
+        string searchValue,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all books tagged with a specific tag.
+    /// Uses OPENJSON to expand the tags array and filter.
+    /// </summary>
+    /// <param name="tag">Tag to search for (e.g., "sci-fi", "fantasy")</param>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of books with the specified tag</returns>
+    Task<List<Book>> GetBooksByTagAsync(
+        string tag,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all books that have metadata populated.
+    /// Useful for viewing books with extended JSON information.
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of books with metadata</returns>
+    Task<List<Book>> GetBooksWithMetadataAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
 }

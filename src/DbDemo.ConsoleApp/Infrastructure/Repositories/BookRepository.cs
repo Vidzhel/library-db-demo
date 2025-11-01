@@ -23,12 +23,12 @@ public class BookRepository : IBookRepository
             INSERT INTO Books (
                 ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
                 PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
-                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt
+                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt, Metadata
             )
             VALUES (
                 @ISBN, @Title, @Subtitle, @Description, @Publisher, @PublishedDate,
                 @PageCount, @Language, @CategoryId, @TotalCopies, @AvailableCopies,
-                @ShelfLocation, @IsDeleted, @CreatedAt, @UpdatedAt
+                @ShelfLocation, @IsDeleted, @CreatedAt, @UpdatedAt, @Metadata
             );
             SELECT CAST(SCOPE_IDENTITY() AS INT);";
 
@@ -54,7 +54,7 @@ public class BookRepository : IBookRepository
             SELECT
                 Id, ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
                 PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
-                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt
+                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt, Metadata
             FROM Books
             WHERE Id = @Id;";
 
@@ -79,7 +79,7 @@ public class BookRepository : IBookRepository
             SELECT
                 Id, ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
                 PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
-                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt
+                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt, Metadata
             FROM Books
             WHERE ISBN = @ISBN;";
 
@@ -113,7 +113,7 @@ public class BookRepository : IBookRepository
             SELECT
                 Id, ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
                 PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
-                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt
+                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt, Metadata
             FROM Books"
             + (includeDeleted ? "" : " WHERE IsDeleted = 0")
             + @"
@@ -148,7 +148,7 @@ public class BookRepository : IBookRepository
             SELECT
                 Id, ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
                 PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
-                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt
+                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt, Metadata
             FROM Books
             WHERE IsDeleted = 0 AND Title LIKE @SearchPattern
             ORDER BY Title;";
@@ -176,7 +176,7 @@ public class BookRepository : IBookRepository
             SELECT
                 Id, ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
                 PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
-                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt
+                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt, Metadata
             FROM Books
             WHERE CategoryId = @CategoryId AND IsDeleted = 0
             ORDER BY Title;";
@@ -228,7 +228,8 @@ public class BookRepository : IBookRepository
                 AvailableCopies = @AvailableCopies,
                 ShelfLocation = @ShelfLocation,
                 IsDeleted = @IsDeleted,
-                UpdatedAt = @UpdatedAt
+                UpdatedAt = @UpdatedAt,
+                Metadata = @Metadata
             WHERE Id = @Id;";
 
         var connection = transaction.Connection ;
@@ -322,6 +323,7 @@ public class BookRepository : IBookRepository
         command.Parameters.Add("@IsDeleted", SqlDbType.Bit).Value = book.IsDeleted;
         command.Parameters.Add("@CreatedAt", SqlDbType.DateTime2).Value = book.CreatedAt;
         command.Parameters.Add("@UpdatedAt", SqlDbType.DateTime2).Value = book.UpdatedAt;
+        command.Parameters.Add("@Metadata", SqlDbType.NVarChar, -1).Value = (object?)book.MetadataJson ?? DBNull.Value;
     }
 
     /// <summary>
@@ -347,6 +349,7 @@ public class BookRepository : IBookRepository
         var isDeleted = reader.GetBoolean(13);
         var createdAt = reader.GetDateTime(14);
         var updatedAt = reader.GetDateTime(15);
+        var metadataJson = reader.IsDBNull(16) ? null : reader.GetString(16);
 
         return Book.FromDatabase(
             id,
@@ -364,7 +367,114 @@ public class BookRepository : IBookRepository
             shelfLocation,
             isDeleted,
             createdAt,
-            updatedAt
+            updatedAt,
+            metadataJson
         );
+    }
+
+    public async Task<List<Book>> SearchByMetadataValueAsync(
+        string jsonPath,
+        string searchValue,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(jsonPath))
+            throw new ArgumentException("JSON path cannot be empty", nameof(jsonPath));
+
+        if (string.IsNullOrWhiteSpace(searchValue))
+            throw new ArgumentException("Search value cannot be empty", nameof(searchValue));
+
+        // Use JSON_VALUE to extract and filter by JSON property
+        const string sql = @"
+            SELECT
+                Id, ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
+                PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
+                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt, Metadata
+            FROM Books
+            WHERE JSON_VALUE(Metadata, @JsonPath) = @SearchValue
+                AND IsDeleted = 0
+            ORDER BY Title;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.Add("@JsonPath", SqlDbType.NVarChar, 100).Value = jsonPath;
+        command.Parameters.Add("@SearchValue", SqlDbType.NVarChar, 200).Value = searchValue;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var books = new List<Book>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            books.Add(MapReaderToBook(reader));
+        }
+
+        return books;
+    }
+
+    public async Task<List<Book>> GetBooksByTagAsync(
+        string tag,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(tag))
+            throw new ArgumentException("Tag cannot be empty", nameof(tag));
+
+        // Use OPENJSON to expand tags array and filter
+        const string sql = @"
+            SELECT DISTINCT
+                b.Id, b.ISBN, b.Title, b.Subtitle, b.Description, b.Publisher, b.PublishedDate,
+                b.PageCount, b.Language, b.CategoryId, b.TotalCopies, b.AvailableCopies,
+                b.ShelfLocation, b.IsDeleted, b.CreatedAt, b.UpdatedAt, b.Metadata
+            FROM Books b
+            CROSS APPLY OPENJSON(b.Metadata, '$.tags') AS tags
+            WHERE tags.[value] = @Tag
+                AND b.IsDeleted = 0
+            ORDER BY b.Title;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.Add("@Tag", SqlDbType.NVarChar, 50).Value = tag;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var books = new List<Book>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            books.Add(MapReaderToBook(reader));
+        }
+
+        return books;
+    }
+
+    public async Task<List<Book>> GetBooksWithMetadataAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        // Get all books that have metadata populated
+        const string sql = @"
+            SELECT
+                Id, ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
+                PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
+                ShelfLocation, IsDeleted, CreatedAt, UpdatedAt, Metadata
+            FROM Books
+            WHERE Metadata IS NOT NULL
+                AND IsDeleted = 0
+            ORDER BY Title;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var books = new List<Book>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            books.Add(MapReaderToBook(reader));
+        }
+
+        return books;
     }
 }
