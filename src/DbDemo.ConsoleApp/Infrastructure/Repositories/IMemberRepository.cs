@@ -97,4 +97,13 @@ public interface IMemberRepository
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if deleted successfully, false if member not found</returns>
     Task<bool> DeleteAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves comprehensive statistics for a member using the fn_GetMemberStatistics table-valued function
+    /// </summary>
+    /// <param name="memberId">The member ID to get statistics for</param>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Member statistics if member exists, null otherwise</returns>
+    Task<MemberStatistics?> GetStatisticsAsync(int memberId, SqlTransaction transaction, CancellationToken cancellationToken = default);
 }

@@ -257,6 +257,44 @@ public class MemberRepository : IMemberRepository
         }
     }
 
+    public async Task<MemberStatistics?> GetStatisticsAsync(int memberId, SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        // Query the table-valued function fn_GetMemberStatistics
+        // TVFs are queried just like tables using SELECT
+        const string sql = @"
+            SELECT
+                MemberId,
+                TotalBooksLoaned,
+                ActiveLoans,
+                OverdueLoans,
+                ReturnedLateCount,
+                TotalLateFees,
+                UnpaidLateFees,
+                AvgLoanDurationDays,
+                LastBorrowDate,
+                TotalRenewals,
+                LostOrDamagedCount
+            FROM dbo.fn_GetMemberStatistics(@MemberId);";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.Add("@MemberId", SqlDbType.Int).Value = memberId;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            // If the member doesn't exist or has no loan history, TotalBooksLoaned will be 0
+            // We still return statistics showing all zeros rather than null
+            return MapReaderToMemberStatistics(reader);
+        }
+
+        // This should not happen as the TVF always returns one row, even if member doesn't exist
+        return null;
+    }
+
     /// <summary>
     /// Helper method to add all member parameters to a command
     /// Centralizes parameter creation to avoid duplication
@@ -318,6 +356,39 @@ public class MemberRepository : IMemberRepository
             outstandingFees,
             createdAt,
             updatedAt
+        );
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to a MemberStatistics DTO
+    /// Reads results from fn_GetMemberStatistics table-valued function
+    /// </summary>
+    private static MemberStatistics MapReaderToMemberStatistics(SqlDataReader reader)
+    {
+        var memberId = reader.GetInt32(0);
+        var totalBooksLoaned = reader.GetInt32(1);
+        var activeLoans = reader.GetInt32(2);
+        var overdueLoans = reader.GetInt32(3);
+        var returnedLateCount = reader.GetInt32(4);
+        var totalLateFees = reader.GetDecimal(5);
+        var unpaidLateFees = reader.GetDecimal(6);
+        var avgLoanDurationDays = reader.IsDBNull(7) ? null : (int?)reader.GetInt32(7);
+        var lastBorrowDate = reader.IsDBNull(8) ? null : (DateTime?)reader.GetDateTime(8);
+        var totalRenewals = reader.GetInt32(9);
+        var lostOrDamagedCount = reader.GetInt32(10);
+
+        return MemberStatistics.FromDatabase(
+            memberId,
+            totalBooksLoaned,
+            activeLoans,
+            overdueLoans,
+            returnedLateCount,
+            totalLateFees,
+            unpaidLateFees,
+            avgLoanDurationDays,
+            lastBorrowDate,
+            totalRenewals,
+            lostOrDamagedCount
         );
     }
 }
