@@ -367,4 +367,92 @@ public class ReportRepository : IReportRepository
             loanCount
         );
     }
+
+    public async Task<List<LibraryStatistics>> GetLibraryStatsWithTempTableAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = "EXEC dbo.sp_GetLibraryStatsWithTempTable;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var stats = new List<LibraryStatistics>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            stats.Add(MapReaderToLibraryStatistics(reader));
+        }
+
+        return stats;
+    }
+
+    public async Task<List<LibraryStatistics>> GetLibraryStatsWithTableVariableAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = "EXEC dbo.sp_GetLibraryStatsWithTableVariable;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var stats = new List<LibraryStatistics>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            stats.Add(MapReaderToLibraryStatistics(reader));
+        }
+
+        return stats;
+    }
+
+    public async Task<List<LibraryStatistics>> GetLibraryStatsWithCTEAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = "EXEC dbo.sp_GetLibraryStatsWithCTE;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var stats = new List<LibraryStatistics>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            stats.Add(MapReaderToLibraryStatistics(reader));
+        }
+
+        return stats;
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to a LibraryStatistics entity
+    /// Shared mapper for all three temp table approaches
+    /// </summary>
+    private static LibraryStatistics MapReaderToLibraryStatistics(SqlDataReader reader)
+    {
+        var categoryId = reader.GetInt32(0);
+        var categoryName = reader.GetString(1);
+        var totalBooks = reader.GetInt32(2);
+        var totalLoans = reader.GetInt32(3);
+        var activeLoans = reader.GetInt32(4);
+        var averageLoansPerBook = reader.GetDecimal(5);
+        var mostPopularBookTitle = reader.IsDBNull(6) ? null : reader.GetString(6);
+
+        return LibraryStatistics.FromDatabase(
+            categoryId,
+            categoryName,
+            totalBooks,
+            totalLoans,
+            activeLoans,
+            averageLoansPerBook,
+            mostPopularBookTitle
+        );
+    }
 }

@@ -78,4 +78,40 @@ public interface IReportRepository
     Task<List<UnpivotedLoanStat>> GetUnpivotedLoanStatsAsync(
         SqlTransaction transaction,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves library statistics using #TempTable approach
+    /// Calls sp_GetLibraryStatsWithTempTable stored procedure
+    /// Best for: Large datasets, multiple operations, complex transformations
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of library statistics by category</returns>
+    Task<List<LibraryStatistics>> GetLibraryStatsWithTempTableAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves library statistics using @TableVariable approach
+    /// Calls sp_GetLibraryStatsWithTableVariable stored procedure
+    /// Best for: Small datasets, single operation, simple logic
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of library statistics by category</returns>
+    Task<List<LibraryStatistics>> GetLibraryStatsWithTableVariableAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves library statistics using CTE approach
+    /// Calls sp_GetLibraryStatsWithCTE stored procedure
+    /// Best for: Single-use queries, inline calculations, query optimization
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of library statistics by category</returns>
+    Task<List<LibraryStatistics>> GetLibraryStatsWithCTEAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
 }
