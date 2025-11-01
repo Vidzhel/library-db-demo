@@ -243,4 +243,128 @@ public class ReportRepository : IReportRepository
             threeMonthMovingAvg
         );
     }
+
+    public async Task<List<MonthlyLoanPivot>> GetMonthlyLoansPivotAsync(
+        int? year,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        var sql = @"
+            SELECT
+                [Year],
+                [Month],
+                YearMonth,
+                [Fiction],
+                [Non-Fiction],
+                [Science],
+                [History],
+                [Technology],
+                [Biography],
+                [Children],
+                TotalLoans
+            FROM dbo.vw_MonthlyLoansByCategory
+            WHERE 1=1";
+
+        if (year.HasValue)
+        {
+            sql += " AND [Year] = @Year";
+        }
+
+        sql += " ORDER BY [Year], [Month];";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        if (year.HasValue)
+        {
+            command.Parameters.Add("@Year", SqlDbType.Int).Value = year.Value;
+        }
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var pivots = new List<MonthlyLoanPivot>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            pivots.Add(MapReaderToMonthlyLoanPivot(reader));
+        }
+
+        return pivots;
+    }
+
+    public async Task<List<UnpivotedLoanStat>> GetUnpivotedLoanStatsAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT
+                YearMonth,
+                CategoryName,
+                LoanCount
+            FROM dbo.vw_UnpivotedLoanStats
+            ORDER BY YearMonth, CategoryName;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var stats = new List<UnpivotedLoanStat>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            stats.Add(MapReaderToUnpivotedLoanStat(reader));
+        }
+
+        return stats;
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to a MonthlyLoanPivot entity
+    /// Handles dynamic category columns from PIVOT operation
+    /// </summary>
+    private static MonthlyLoanPivot MapReaderToMonthlyLoanPivot(SqlDataReader reader)
+    {
+        var year = reader.GetInt32(0);
+        var month = reader.GetInt32(1);
+        var yearMonth = reader.GetString(2);
+
+        // Extract category loan counts from pivoted columns
+        var categoryLoans = new Dictionary<string, int>
+        {
+            ["Fiction"] = reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
+            ["Non-Fiction"] = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+            ["Science"] = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
+            ["History"] = reader.IsDBNull(6) ? 0 : reader.GetInt32(6),
+            ["Technology"] = reader.IsDBNull(7) ? 0 : reader.GetInt32(7),
+            ["Biography"] = reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
+            ["Children"] = reader.IsDBNull(9) ? 0 : reader.GetInt32(9)
+        };
+
+        var totalLoans = reader.GetInt32(10);
+
+        return MonthlyLoanPivot.FromDatabase(
+            year,
+            month,
+            yearMonth,
+            categoryLoans,
+            totalLoans
+        );
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to an UnpivotedLoanStat entity
+    /// </summary>
+    private static UnpivotedLoanStat MapReaderToUnpivotedLoanStat(SqlDataReader reader)
+    {
+        var yearMonth = reader.GetString(0);
+        var categoryName = reader.GetString(1);
+        var loanCount = reader.GetInt32(2);
+
+        return UnpivotedLoanStat.FromDatabase(
+            yearMonth,
+            categoryName,
+            loanCount
+        );
+    }
 }

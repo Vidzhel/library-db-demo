@@ -316,7 +316,9 @@ public class WindowFunctionTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
             var books = new List<Book>();
             for (int i = 0; i < count; i++)
             {
-                var isbn = $"978-0-{categoryId:D3}-{i:D5}-0";
+                // Create valid 13-digit ISBN: use unique sequential number
+                long baseIsbn = 1000000000000L + (categoryId * 1000) + i;
+                var isbn = baseIsbn.ToString();
                 var book = new Book(isbn, $"Book {i + 1} Cat {categoryId}", categoryId, 5);
                 var created = await _bookRepository.CreateAsync(book, tx);
                 books.Add(created);

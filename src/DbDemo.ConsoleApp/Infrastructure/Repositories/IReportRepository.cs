@@ -54,4 +54,28 @@ public interface IReportRepository
         int topN,
         SqlTransaction transaction,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves monthly loan statistics with categories pivoted as columns
+    /// Uses vw_MonthlyLoansByCategory which demonstrates PIVOT operator
+    /// </summary>
+    /// <param name="year">Optional: Filter to specific year</param>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of monthly loan statistics with pivoted categories</returns>
+    Task<List<MonthlyLoanPivot>> GetMonthlyLoansPivotAsync(
+        int? year,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves unpivoted (normalized) loan statistics
+    /// Uses vw_UnpivotedLoanStats which demonstrates UNPIVOT operator
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of loan statistics in normalized row format</returns>
+    Task<List<UnpivotedLoanStat>> GetUnpivotedLoanStatsAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
 }
