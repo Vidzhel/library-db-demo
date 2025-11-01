@@ -455,4 +455,198 @@ public class ReportRepository : IReportRepository
             mostPopularBookTitle
         );
     }
+
+    public async Task<List<GroupingSetsResult>> GetLibraryStatsGroupingSetsAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = "EXEC dbo.sp_GetLibraryStatsGroupingSets;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var results = new List<GroupingSetsResult>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(MapReaderToGroupingSetsResult(reader));
+        }
+
+        return results;
+    }
+
+    public async Task<List<RollupResult>> GetLibraryStatsRollupAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = "EXEC dbo.sp_GetLibraryStatsRollup;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var results = new List<RollupResult>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(MapReaderToRollupResult(reader));
+        }
+
+        return results;
+    }
+
+    public async Task<List<CubeResult>> GetLibraryStatsCubeAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = "EXEC dbo.sp_GetLibraryStatsCube;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var results = new List<CubeResult>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(MapReaderToCubeResult(reader));
+        }
+
+        return results;
+    }
+
+    public async Task<List<DashboardSummary>> GetDashboardSummaryAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = "EXEC dbo.sp_GetDashboardSummary;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var results = new List<DashboardSummary>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(MapReaderToDashboardSummary(reader));
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to a GroupingSetsResult entity
+    /// </summary>
+    private static GroupingSetsResult MapReaderToGroupingSetsResult(SqlDataReader reader)
+    {
+        var categoryName = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var loanYear = reader.IsDBNull(1) ? null : (int?)reader.GetInt32(1);
+        var loanMonth = reader.IsDBNull(2) ? null : (int?)reader.GetInt32(2);
+        var totalLoans = reader.GetInt32(3);
+        var uniqueMembers = reader.GetInt32(4);
+        var uniqueBooksLoaned = reader.GetInt32(5);
+        var isCategoryAggregated = (int)reader.GetByte(6); // GROUPING() returns BIT
+        var isYearAggregated = (int)reader.GetByte(7); // GROUPING() returns BIT
+        var isMonthAggregated = (int)reader.GetByte(8); // GROUPING() returns BIT
+
+        return GroupingSetsResult.FromDatabase(
+            categoryName,
+            loanYear,
+            loanMonth,
+            totalLoans,
+            uniqueMembers,
+            uniqueBooksLoaned,
+            isCategoryAggregated,
+            isYearAggregated,
+            isMonthAggregated
+        );
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to a RollupResult entity
+    /// </summary>
+    private static RollupResult MapReaderToRollupResult(SqlDataReader reader)
+    {
+        var categoryName = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var loanYear = reader.IsDBNull(1) ? null : (int?)reader.GetInt32(1);
+        var loanMonth = reader.IsDBNull(2) ? null : (int?)reader.GetInt32(2);
+        var totalLoans = reader.GetInt32(3);
+        var avgLoanDurationDays = reader.GetInt32(4);
+        var groupingLevel = reader.GetInt32(5);
+        var aggregationLevel = reader.GetString(6);
+
+        return RollupResult.FromDatabase(
+            categoryName,
+            loanYear,
+            loanMonth,
+            totalLoans,
+            avgLoanDurationDays,
+            groupingLevel,
+            aggregationLevel
+        );
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to a CubeResult entity
+    /// </summary>
+    private static CubeResult MapReaderToCubeResult(SqlDataReader reader)
+    {
+        var categoryName = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var loanYear = reader.IsDBNull(1) ? null : (int?)reader.GetInt32(1);
+        var loanStatus = reader.IsDBNull(2) ? null : reader.GetString(2);
+        var totalLoans = reader.GetInt32(3);
+        var isCategoryAggregated = (int)reader.GetByte(4); // GROUPING() returns BIT
+        var isYearAggregated = (int)reader.GetByte(5); // GROUPING() returns BIT
+        var isStatusAggregated = (int)reader.GetByte(6); // GROUPING() returns BIT
+        var groupingId = reader.GetInt32(7);
+
+        return CubeResult.FromDatabase(
+            categoryName,
+            loanYear,
+            loanStatus,
+            totalLoans,
+            isCategoryAggregated,
+            isYearAggregated,
+            isStatusAggregated,
+            groupingId
+        );
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to a DashboardSummary entity
+    /// </summary>
+    private static DashboardSummary MapReaderToDashboardSummary(SqlDataReader reader)
+    {
+        var categoryName = reader.IsDBNull(0) ? null : reader.GetString(0);
+        var loanYear = reader.IsDBNull(1) ? null : (int?)reader.GetInt32(1);
+        var totalLoans = reader.GetInt32(2);
+        var uniqueMembers = reader.GetInt32(3);
+        var uniqueBooks = reader.GetInt32(4);
+        var activeLoans = reader.GetInt32(5);
+        var returnedLoans = reader.GetInt32(6);
+        var overdueLoans = reader.GetInt32(7);
+        var avgLoanDurationDays = reader.GetInt32(8);
+        var isCategoryGrouped = (int)reader.GetByte(9); // GROUPING() returns BIT
+        var isYearGrouped = (int)reader.GetByte(10); // GROUPING() returns BIT
+
+        return DashboardSummary.FromDatabase(
+            categoryName,
+            loanYear,
+            totalLoans,
+            uniqueMembers,
+            uniqueBooks,
+            activeLoans,
+            returnedLoans,
+            overdueLoans,
+            avgLoanDurationDays,
+            isCategoryGrouped,
+            isYearGrouped
+        );
+    }
 }

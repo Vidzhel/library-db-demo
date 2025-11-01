@@ -114,4 +114,56 @@ public interface IReportRepository
     Task<List<LibraryStatistics>> GetLibraryStatsWithCTEAsync(
         SqlTransaction transaction,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves library statistics using GROUPING SETS
+    /// Calls sp_GetLibraryStatsGroupingSets stored procedure
+    /// Demonstrates multi-dimensional aggregation with GROUPING() function
+    /// Returns aggregations at multiple levels: Category, Time, Category+Time, Grand Total
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of aggregated statistics with GROUPING indicators</returns>
+    Task<List<GroupingSetsResult>> GetLibraryStatsGroupingSetsAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves library statistics using ROLLUP
+    /// Calls sp_GetLibraryStatsRollup stored procedure
+    /// Demonstrates hierarchical aggregation with GROUPING_ID
+    /// Creates subtotals at: Category-Year-Month, Category-Year, Category, and Grand Total
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of hierarchical aggregations with grouping levels</returns>
+    Task<List<RollupResult>> GetLibraryStatsRollupAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves library statistics using CUBE
+    /// Calls sp_GetLibraryStatsCube stored procedure
+    /// Demonstrates all possible grouping combinations (2^n)
+    /// Returns 8 combinations of Category, Year, and Status dimensions
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of all aggregation combinations with GROUPING indicators</returns>
+    Task<List<CubeResult>> GetLibraryStatsCubeAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves dashboard summary statistics using ROLLUP
+    /// Calls sp_GetDashboardSummary stored procedure
+    /// Provides key metrics at Category, Year, and Grand Total levels
+    /// Includes active/returned/overdue loan breakdowns
+    /// </summary>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of dashboard summary statistics with hierarchical aggregations</returns>
+    Task<List<DashboardSummary>> GetDashboardSummaryAsync(
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
 }
