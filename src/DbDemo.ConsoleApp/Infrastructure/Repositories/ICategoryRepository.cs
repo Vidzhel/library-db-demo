@@ -18,4 +18,13 @@ public interface ICategoryRepository
     Task<int> GetCountAsync(SqlTransaction transaction, CancellationToken cancellationToken = default);
     Task<bool> UpdateAsync(Category category, SqlTransaction transaction, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves complete category hierarchy using recursive CTE (fn_GetCategoryHierarchy)
+    /// </summary>
+    /// <param name="rootCategoryId">Optional: Start from specific category (NULL = entire tree)</param>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of categories with hierarchy information (Level, Path, etc.)</returns>
+    Task<List<CategoryHierarchy>> GetHierarchyAsync(int? rootCategoryId, SqlTransaction transaction, CancellationToken cancellationToken = default);
 }

@@ -201,6 +201,39 @@ public class CategoryRepository : ICategoryRepository
         command.Parameters.Add("@UpdatedAt", SqlDbType.DateTime2).Value = category.UpdatedAt;
     }
 
+    public async Task<List<CategoryHierarchy>> GetHierarchyAsync(
+        int? rootCategoryId,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        // Query the recursive CTE function fn_GetCategoryHierarchy
+        const string sql = @"
+            SELECT
+                CategoryId,
+                Name,
+                ParentCategoryId,
+                Level,
+                HierarchyPath,
+                FullPath
+            FROM dbo.fn_GetCategoryHierarchy(@RootCategoryId)
+            ORDER BY FullPath;";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.Add("@RootCategoryId", SqlDbType.Int).Value = (object?)rootCategoryId ?? DBNull.Value;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var hierarchy = new List<CategoryHierarchy>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            hierarchy.Add(MapReaderToCategoryHierarchy(reader));
+        }
+
+        return hierarchy;
+    }
+
     /// <summary>
     /// Maps a SqlDataReader row to a Category entity
     /// Uses internal factory method to bypass validation for database-sourced data
@@ -221,6 +254,29 @@ public class CategoryRepository : ICategoryRepository
             parentCategoryId,
             createdAt,
             updatedAt
+        );
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to a CategoryHierarchy DTO
+    /// Reads results from fn_GetCategoryHierarchy recursive CTE function
+    /// </summary>
+    private static CategoryHierarchy MapReaderToCategoryHierarchy(SqlDataReader reader)
+    {
+        var categoryId = reader.GetInt32(0);
+        var name = reader.GetString(1);
+        var parentCategoryId = reader.IsDBNull(2) ? null : (int?)reader.GetInt32(2);
+        var level = reader.GetInt32(3);
+        var hierarchyPath = reader.GetString(4);
+        var fullPath = reader.GetString(5);
+
+        return CategoryHierarchy.FromDatabase(
+            categoryId,
+            name,
+            parentCategoryId,
+            level,
+            hierarchyPath,
+            fullPath
         );
     }
 }
