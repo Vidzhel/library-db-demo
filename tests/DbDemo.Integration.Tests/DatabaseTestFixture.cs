@@ -33,8 +33,9 @@ public class DatabaseTestFixture : IDisposable
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync();
 
-        await using var command = new SqlCommand($"DELETE FROM {tableName}", connection);
-        await command.ExecuteNonQueryAsync();
+        // Delete all rows from the table
+        await using var deleteCommand = new SqlCommand($"DELETE FROM {tableName}", connection);
+        await deleteCommand.ExecuteNonQueryAsync();
     }
 
     /// <summary>

@@ -23,9 +23,9 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
     public LoanServiceTests(DatabaseTestFixture fixture)
     {
         _fixture = fixture;
-        _bookRepository = new BookRepository(_fixture.ConnectionString);
-        _memberRepository = new MemberRepository(_fixture.ConnectionString);
-        _loanRepository = new LoanRepository(_fixture.ConnectionString);
+        _bookRepository = new BookRepository();
+        _memberRepository = new MemberRepository();
+        _loanRepository = new LoanRepository();
         _loanService = new LoanService(
             _loanRepository,
             _bookRepository,
@@ -218,7 +218,7 @@ public class LoanServiceTests : IClassFixture<DatabaseTestFixture>
 
     private async Task<Category> CreateTestCategoryAsync()
     {
-        var categoryRepo = new CategoryRepository(_fixture.ConnectionString);
+        var categoryRepo = new CategoryRepository();
         var category = new Category("Test Category", "Test Description");
         return await _fixture.WithTransactionAsync(tx => categoryRepo.CreateAsync(category, tx));
     }

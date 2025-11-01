@@ -10,28 +10,27 @@ namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 /// </summary>
 public class BookRepository : IBookRepository
 {
-    private readonly string _connectionString;
-
-    public BookRepository(string connectionString)
+    public BookRepository()
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
     }
 
     public async Task<Book> CreateAsync(Book book, SqlTransaction transaction, CancellationToken cancellationToken = default)
     {
-        // SQL with explicit column names and OUTPUT clause to get generated ID
+        // SQL with explicit column names
+        // Note: Using SCOPE_IDENTITY() instead of OUTPUT INSERTED.Id because the table has triggers
+        // SQL Server doesn't allow OUTPUT clause without INTO when triggers are present
         const string sql = @"
             INSERT INTO Books (
                 ISBN, Title, Subtitle, Description, Publisher, PublishedDate,
                 PageCount, Language, CategoryId, TotalCopies, AvailableCopies,
                 ShelfLocation, IsDeleted, CreatedAt, UpdatedAt
             )
-            OUTPUT INSERTED.Id
             VALUES (
                 @ISBN, @Title, @Subtitle, @Description, @Publisher, @PublishedDate,
                 @PageCount, @Language, @CategoryId, @TotalCopies, @AvailableCopies,
                 @ShelfLocation, @IsDeleted, @CreatedAt, @UpdatedAt
-            );";
+            );
+            SELECT CAST(SCOPE_IDENTITY() AS INT);";
 
         var connection = transaction.Connection ;
 
@@ -40,7 +39,7 @@ public class BookRepository : IBookRepository
         // Add parameters - this prevents SQL injection
         AddBookParameters(command, book);
 
-        // ExecuteScalar returns the OUTPUT value (new Id)
+        // ExecuteScalar returns the new Id from SCOPE_IDENTITY()
         var newId = (int)await command.ExecuteScalarAsync(cancellationToken);
 
         // Fetch the created book using the same transaction

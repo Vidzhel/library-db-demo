@@ -17,7 +17,7 @@ public class MemberRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public MemberRepositoryTests(DatabaseTestFixture fixture)
     {
         _fixture = fixture;
-        _repository = new MemberRepository(_fixture.ConnectionString);
+        _repository = new MemberRepository();
     }
 
     public async Task InitializeAsync()

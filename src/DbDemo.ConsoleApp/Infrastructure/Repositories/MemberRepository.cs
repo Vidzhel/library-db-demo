@@ -10,11 +10,8 @@ namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 /// </summary>
 public class MemberRepository : IMemberRepository
 {
-    private readonly string _connectionString;
-
-    public MemberRepository(string connectionString)
+    public MemberRepository()
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
     }
 
     public async Task<Member> CreateAsync(Member member, SqlTransaction transaction,

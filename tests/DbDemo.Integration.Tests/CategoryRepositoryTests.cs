@@ -18,7 +18,7 @@ public class CategoryRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyn
     public CategoryRepositoryTests(DatabaseTestFixture fixture)
     {
         _fixture = fixture;
-        _repository = new CategoryRepository(_fixture.ConnectionString);
+        _repository = new CategoryRepository();
     }
 
     public async Task InitializeAsync()

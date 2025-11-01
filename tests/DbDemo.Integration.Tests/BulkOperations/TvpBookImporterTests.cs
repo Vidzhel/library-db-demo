@@ -282,13 +282,20 @@ public class TvpBookImporterTests : IClassFixture<DatabaseTestFixture>, IAsyncLi
 
     private async Task CleanupBooksAsync()
     {
-        const string sql = "DELETE FROM Books WHERE Id > 0";
+        // Delete in correct order to respect FK constraints
+        const string deleteLoans = "DELETE FROM Loans WHERE BookId > 0";
+        const string deleteBooks = "DELETE FROM Books WHERE Id > 0";
 
         await using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
-        await using var command = new SqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync();
+        // Delete Loans first (child records)
+        await using var loansCommand = new SqlCommand(deleteLoans, connection);
+        await loansCommand.ExecuteNonQueryAsync();
+
+        // Then delete Books (parent records)
+        await using var booksCommand = new SqlCommand(deleteBooks, connection);
+        await booksCommand.ExecuteNonQueryAsync();
     }
 
     #endregion

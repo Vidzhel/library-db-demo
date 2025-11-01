@@ -103,4 +103,32 @@ public interface ILoanRepository
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if deleted successfully, false if loan not found</returns>
     Task<bool> DeleteAsync(int id, SqlTransaction transaction, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets an overdue loans report by calling the sp_GetOverdueLoans stored procedure.
+    /// Returns detailed information about overdue loans including member and book details.
+    /// </summary>
+    /// <param name="asOfDate">Optional date to check for overdue status (defaults to current UTC time if null)</param>
+    /// <param name="minDaysOverdue">Minimum number of days overdue to include (defaults to 0)</param>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Tuple containing the list of overdue loan reports and total count</returns>
+    Task<(List<OverdueLoanReport> Loans, int TotalCount)> GetOverdueLoansReportAsync(
+        DateTime? asOfDate,
+        int minDaysOverdue,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Calculates the late fee for a loan using the fn_CalculateLateFee scalar function.
+    /// The fee is calculated based on the number of days overdue multiplied by the late fee per day rate.
+    /// </summary>
+    /// <param name="loanId">The ID of the loan to calculate the late fee for</param>
+    /// <param name="transaction">Transaction to participate in (required)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The calculated late fee amount</returns>
+    Task<decimal> CalculateLateFeeAsync(
+        int loanId,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default);
 }

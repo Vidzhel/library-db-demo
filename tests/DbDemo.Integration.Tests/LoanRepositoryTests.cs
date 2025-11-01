@@ -21,10 +21,10 @@ public class LoanRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public LoanRepositoryTests(DatabaseTestFixture fixture)
     {
         _fixture = fixture;
-        _repository = new LoanRepository(_fixture.ConnectionString);
-        _memberRepository = new MemberRepository(_fixture.ConnectionString);
-        _bookRepository = new BookRepository(_fixture.ConnectionString);
-        _categoryRepository = new CategoryRepository(_fixture.ConnectionString);
+        _repository = new LoanRepository();
+        _memberRepository = new MemberRepository();
+        _bookRepository = new BookRepository();
+        _categoryRepository = new CategoryRepository();
     }
 
     public async Task InitializeAsync()

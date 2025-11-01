@@ -19,6 +19,7 @@ internal class Program
     private static IMemberRepository? _memberRepository;
     private static ILoanRepository? _loanRepository;
     private static ICategoryRepository? _categoryRepository;
+    private static IBookAuditRepository? _bookAuditRepository;
 
     static async Task Main(string[] args)
     {
@@ -253,11 +254,12 @@ internal class Program
             }
 
             _connectionString = appConnectionString;
-            _bookRepository = new BookRepository(appConnectionString);
-            _authorRepository = new AuthorRepository(appConnectionString);
-            _memberRepository = new MemberRepository(appConnectionString);
-            _loanRepository = new LoanRepository(appConnectionString);
-            _categoryRepository = new CategoryRepository(appConnectionString);
+            _bookRepository = new BookRepository();
+            _authorRepository = new AuthorRepository();
+            _memberRepository = new MemberRepository();
+            _loanRepository = new LoanRepository();
+            _categoryRepository = new CategoryRepository();
+            _bookAuditRepository = new BookAuditRepository();
             Console.WriteLine("✅ All repositories initialized");
         }
         catch (Exception ex)
@@ -764,6 +766,7 @@ internal class Program
                     _memberRepository!,
                     _loanRepository!,
                     _categoryRepository!,
+                    _bookAuditRepository!,
                     _connectionString!,
                     withDelays: true
                 );
@@ -791,11 +794,18 @@ internal class Program
                     case 7:
                         await demoRunner.RunAllScenariosAsync();
                         break;
+                    // TODO: Move these to demo runner for consistency
                     case 8:
                         await RunConnectionPoolingDemoAsync();
                         break;
                     case 9:
                         await RunBulkOperationsDemoAsync();
+                        break;
+                    case 10:
+                        await demoRunner.RunScenario10_BookAuditTrailAsync();
+                        break;
+                    case 11:
+                        await demoRunner.RunScenario11_OverdueLoansReportAsync();
                         break;
                     default:
                         Console.WriteLine("❌ Invalid choice. Please try again.");
@@ -839,6 +849,8 @@ internal class Program
         Console.WriteLine("7. Run ALL Scenarios");
         Console.WriteLine("8. Connection Pooling Performance Demo");
         Console.WriteLine("9. Bulk Operations Performance Demo");
+        Console.WriteLine("10. Scenario 10: Book Audit Trail");
+        Console.WriteLine("11. Scenario 11: Overdue Loans Report");
         Console.WriteLine("0. Back to Main Menu");
         Console.WriteLine();
         Console.Write("Enter your choice: ");

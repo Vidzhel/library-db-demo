@@ -19,8 +19,8 @@ public class BookRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncLif
     public BookRepositoryTests(DatabaseTestFixture fixture)
     {
         _fixture = fixture;
-        _repository = new BookRepository(_fixture.ConnectionString);
-        _categoryRepository = new CategoryRepository(_fixture.ConnectionString);
+        _repository = new BookRepository();
+        _categoryRepository = new CategoryRepository();
     }
 
     public async Task InitializeAsync()

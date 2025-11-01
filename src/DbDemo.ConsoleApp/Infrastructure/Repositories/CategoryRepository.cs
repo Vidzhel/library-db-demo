@@ -12,11 +12,8 @@ namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 /// </summary>
 public class CategoryRepository : ICategoryRepository
 {
-    // Constructor kept for backward compatibility with demos that instantiate this class directly
-    // Connection string is not used as all operations now require explicit transactions
-    public CategoryRepository(string connectionString)
+    public CategoryRepository()
     {
-        // Connection string parameter ignored - all operations use transactions
     }
 
     public async Task<Category> CreateAsync(Category category, SqlTransaction transaction, CancellationToken cancellationToken = default)

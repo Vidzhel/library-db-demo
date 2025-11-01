@@ -17,7 +17,7 @@ public class AuthorRepositoryTests : IClassFixture<DatabaseTestFixture>, IAsyncL
     public AuthorRepositoryTests(DatabaseTestFixture fixture)
     {
         _fixture = fixture;
-        _repository = new AuthorRepository(_fixture.ConnectionString);
+        _repository = new AuthorRepository();
     }
 
     public async Task InitializeAsync()

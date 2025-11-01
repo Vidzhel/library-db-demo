@@ -15,6 +15,7 @@ public class DemoRunner
     private readonly IMemberRepository _memberRepository;
     private readonly ILoanRepository _loanRepository;
     private readonly ICategoryRepository _categoryRepository;
+    private readonly IBookAuditRepository _bookAuditRepository;
     private readonly string _connectionString;
     private readonly bool _withDelays;
 
@@ -24,6 +25,7 @@ public class DemoRunner
         IMemberRepository memberRepository,
         ILoanRepository loanRepository,
         ICategoryRepository categoryRepository,
+        IBookAuditRepository bookAuditRepository,
         string connectionString,
         bool withDelays = true)
     {
@@ -32,6 +34,7 @@ public class DemoRunner
         _memberRepository = memberRepository;
         _loanRepository = loanRepository;
         _categoryRepository = categoryRepository;
+        _bookAuditRepository = bookAuditRepository;
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _withDelays = withDelays;
     }
@@ -749,6 +752,349 @@ public class DemoRunner
         catch (Exception ex)
         {
             PrintError($"Scenario 6 failed: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Scenario 10: Book Audit Trail
+    /// Demonstrates database trigger-based audit logging for book changes
+    /// </summary>
+    public async Task RunScenario10_BookAuditTrailAsync()
+    {
+        PrintHeader("SCENARIO 10: Book Audit Trail");
+
+        try
+        {
+            await WithTransactionAsync(async tx =>
+            {
+                // Step 1: Get or create a category
+                PrintStep("Preparing test data (category)...");
+                var categories = await _categoryRepository.GetAllAsync(tx);
+                var category = categories.FirstOrDefault();
+
+                if (category == null)
+                {
+                    category = new Category("Fiction", "Fictional literature and novels");
+                    category = await _categoryRepository.CreateAsync(category, tx);
+                    PrintSuccess($"Created category: {category.Name} (ID: {category.Id})");
+                }
+                else
+                {
+                    PrintSuccess($"Using existing category: {category.Name} (ID: {category.Id})");
+                }
+
+                await Delay();
+
+                // Step 2: Create a new book (INSERT trigger)
+                PrintStep("Creating a new book (INSERT will be audited)...");
+                var book = new Book("978-1-234-56789-0", "Audit Trail Demo Book", category.Id, 5);
+                book.UpdateDetails(
+                    title: "Audit Trail Demo Book",
+                    subtitle: "A Book to Test Database Triggers",
+                    description: "This book is created to demonstrate the automatic audit trail functionality.",
+                    publisher: "Demo Press"
+                );
+                book.UpdatePublishingInfo(
+                    publishedDate: new DateTime(2024, 1, 1),
+                    pageCount: 350,
+                    language: "English"
+                );
+                book = await _bookRepository.CreateAsync(book, tx);
+
+                PrintSuccess($"Book created! (ID: {book.Id})");
+                PrintInfo($"  ISBN: {book.ISBN}");
+                PrintInfo($"  Title: {book.Title}");
+                PrintInfo($"  Available Copies: {book.AvailableCopies}");
+
+                await Delay();
+
+                // Step 3: View audit trail after INSERT
+                PrintStep("Viewing audit trail (should show INSERT operation)...");
+                var auditHistory = await _bookAuditRepository.GetAuditHistoryAsync(book.Id, tx);
+
+                PrintSuccess($"Found {auditHistory.Count} audit record(s):");
+                foreach (var audit in auditHistory)
+                {
+                    PrintInfo($"  {audit}");
+                }
+
+                await Delay();
+
+                // Step 4: Update the book (UPDATE trigger)
+                PrintStep("Updating book title and copies (UPDATE will be audited)...");
+                book.UpdateDetails(
+                    title: book.Title,
+                    subtitle: "A Book to Test Database Triggers - UPDATED",
+                    description: book.Description,
+                    publisher: book.Publisher
+                );
+                book.AddCopies(3);  // Total copies: 5 + 3 = 8
+                await _bookRepository.UpdateAsync(book, tx);
+
+                PrintSuccess("Book updated!");
+                PrintInfo($"  New Subtitle: {book.Subtitle}");
+                PrintInfo($"  New Total Copies: {book.TotalCopies}");
+
+                await Delay();
+
+                // Step 5: View audit trail after UPDATE
+                PrintStep("Viewing updated audit trail (should show INSERT + UPDATE)...");
+                auditHistory = await _bookAuditRepository.GetAuditHistoryAsync(book.Id, tx);
+
+                PrintSuccess($"Found {auditHistory.Count} audit record(s):");
+                foreach (var audit in auditHistory)
+                {
+                    PrintInfo($"  {audit}");
+                }
+
+                await Delay();
+
+                // Step 6: Borrow a copy (another UPDATE)
+                PrintStep("Borrowing a copy (will trigger another UPDATE audit)...");
+                book.BorrowCopy();
+                await _bookRepository.UpdateAsync(book, tx);
+
+                PrintSuccess("Copy borrowed!");
+                PrintInfo($"  Available Copies: {book.AvailableCopies}/{book.TotalCopies}");
+
+                await Delay();
+
+                // Step 7: View complete audit trail
+                PrintStep("Viewing complete audit trail...");
+                auditHistory = await _bookAuditRepository.GetAuditHistoryAsync(book.Id, tx);
+
+                PrintSuccess($"Complete audit trail ({auditHistory.Count} records):");
+                for (int i = 0; i < auditHistory.Count; i++)
+                {
+                    var audit = auditHistory[i];
+                    PrintInfo($"\n  Record #{i + 1}:");
+                    PrintInfo($"    Action: {audit.Action}");
+                    PrintInfo($"    Changed At: {audit.ChangedAt:yyyy-MM-dd HH:mm:ss} UTC");
+                    PrintInfo($"    Changed By: {audit.ChangedBy}");
+
+                    if (audit.Action == "UPDATE")
+                    {
+                        if (audit.OldTitle != audit.NewTitle)
+                            PrintInfo($"    Title: '{audit.OldTitle}' → '{audit.NewTitle}'");
+                        if (audit.OldAvailableCopies != audit.NewAvailableCopies)
+                            PrintInfo($"    Available: {audit.OldAvailableCopies} → {audit.NewAvailableCopies}");
+                        if (audit.OldTotalCopies != audit.NewTotalCopies)
+                            PrintInfo($"    Total: {audit.OldTotalCopies} → {audit.NewTotalCopies}");
+                    }
+                }
+
+                await Delay();
+
+                // Step 8: Demonstrate querying all audit records
+                PrintStep("Querying recent audit activity across all books...");
+                var recentAudits = await _bookAuditRepository.GetAllAuditRecordsAsync(
+                    action: null,  // All actions
+                    limit: 10,
+                    transaction: tx
+                );
+
+                PrintSuccess($"Recent audit activity ({recentAudits.Count} records):");
+                foreach (var audit in recentAudits.Take(5))
+                {
+                    PrintInfo($"  BookId {audit.BookId}: {audit.GetChangeDescription()}");
+                }
+
+                if (recentAudits.Count > 5)
+                {
+                    PrintInfo($"  ... and {recentAudits.Count - 5} more");
+                }
+
+                await Delay();
+
+                // Step 9: Delete the test book (DELETE trigger)
+                PrintStep("Deleting the test book (DELETE will be audited)...");
+                await _bookRepository.DeleteAsync(book.Id, tx);
+
+                PrintSuccess("Book deleted (soft delete - marked as IsDeleted = true)");
+
+                await Delay();
+
+                // Step 10: Final audit trail view
+                PrintStep("Viewing final audit trail...");
+                auditHistory = await _bookAuditRepository.GetAuditHistoryAsync(book.Id, tx);
+
+                PrintSuccess($"Final audit trail ({auditHistory.Count} records):");
+                PrintInfo($"  Total INSERT operations: {auditHistory.Count(a => a.Action == "INSERT")}");
+                PrintInfo($"  Total UPDATE operations: {auditHistory.Count(a => a.Action == "UPDATE")}");
+                PrintInfo($"  Total DELETE operations: {auditHistory.Count(a => a.Action == "DELETE")}");
+            });
+
+            PrintScenarioComplete("Scenario 10");
+        }
+        catch (Exception ex)
+        {
+            PrintError($"Scenario 10 failed: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Scenario 11: Overdue Loans Report
+    /// Demonstrates calling a stored procedure with output parameters
+    /// </summary>
+    public async Task RunScenario11_OverdueLoansReportAsync()
+    {
+        PrintHeader("SCENARIO 11: Overdue Loans Report (Stored Procedure)");
+
+        try
+        {
+            await WithTransactionAsync(async tx =>
+            {
+                // Step 1: Check current overdue loans
+                PrintStep("Querying overdue loans using sp_GetOverdueLoans stored procedure...");
+
+                var (overdueLoans, totalCount) = await _loanRepository.GetOverdueLoansReportAsync(
+                    asOfDate: null,  // Use current UTC time
+                    minDaysOverdue: 0,
+                    transaction: tx
+                );
+
+                PrintSuccess($"Stored procedure executed successfully!");
+                PrintInfo($"  Total overdue loans (from OUTPUT parameter): {totalCount}");
+                PrintInfo($"  Loans returned in result set: {overdueLoans.Count}");
+
+                await Delay();
+
+                // Step 2: Display overdue loans if any exist
+                if (overdueLoans.Count > 0)
+                {
+                    PrintStep("Displaying overdue loans (top 5)...");
+
+                    foreach (var loan in overdueLoans.Take(5))
+                    {
+                        PrintWarning($"\n  {loan}");
+                        PrintInfo($"    Member: {loan.MemberName} ({loan.MemberEmail})");
+                        PrintInfo($"    Book: \"{loan.BookTitle}\" (ISBN: {loan.ISBN})");
+                        PrintInfo($"    Due: {loan.DueDate:yyyy-MM-dd} | Borrowed: {loan.BorrowedAt:yyyy-MM-dd}");
+                        PrintInfo($"    Status: {loan.Status} | Fee: £{loan.CalculatedLateFee:F2}");
+                    }
+
+                    if (overdueLoans.Count > 5)
+                    {
+                        PrintInfo($"\n  ... and {overdueLoans.Count - 5} more overdue loan(s)");
+                    }
+                }
+                else
+                {
+                    PrintSuccess("No overdue loans found - all members are up to date!");
+                }
+
+                await Delay();
+
+                // Step 3: Filter by minimum days overdue
+                PrintStep("Filtering for loans overdue by 7+ days...");
+
+                var (seriouslyOverdue, seriousCount) = await _loanRepository.GetOverdueLoansReportAsync(
+                    asOfDate: null,
+                    minDaysOverdue: 7,
+                    transaction: tx
+                );
+
+                PrintSuccess($"Found {seriousCount} loan(s) overdue by 7+ days");
+
+                if (seriouslyOverdue.Count > 0)
+                {
+                    foreach (var loan in seriouslyOverdue.Take(3))
+                    {
+                        PrintWarning($"  {loan.MemberName}: {loan.DaysOverdue} days overdue (£{loan.CalculatedLateFee:F2})");
+                    }
+                }
+
+                await Delay();
+
+                // Step 4: Demonstrate using custom AsOfDate
+                PrintStep("Checking what would have been overdue 30 days ago...");
+
+                var historicalDate = DateTime.UtcNow.AddDays(-30);
+                var (historicalOverdue, historicalCount) = await _loanRepository.GetOverdueLoansReportAsync(
+                    asOfDate: historicalDate,
+                    minDaysOverdue: 0,
+                    transaction: tx
+                );
+
+                PrintSuccess($"As of {historicalDate:yyyy-MM-dd}, there were {historicalCount} overdue loan(s)");
+
+                await Delay();
+
+                // Step 5: Show summary statistics
+                PrintStep("Calculating overdue loan statistics...");
+
+                if (overdueLoans.Count > 0)
+                {
+                    var totalFees = overdueLoans.Sum(l => l.CalculatedLateFee);
+                    var avgDaysOverdue = overdueLoans.Average(l => l.DaysOverdue);
+                    var mostOverdue = overdueLoans.OrderByDescending(l => l.DaysOverdue).First();
+
+                    PrintSuccess("Overdue Loan Statistics:");
+                    PrintInfo($"  Total Overdue: {totalCount}");
+                    PrintInfo($"  Total Late Fees: £{totalFees:F2}");
+                    PrintInfo($"  Average Days Overdue: {avgDaysOverdue:F1}");
+                    PrintInfo($"  Most Overdue: {mostOverdue.DaysOverdue} days ({mostOverdue.MemberName} - \"{mostOverdue.BookTitle}\")");
+                }
+                else
+                {
+                    PrintInfo("  No overdue loans to analyze");
+                }
+
+                await Delay();
+
+                // Step 6: Demonstrate output parameter usage
+                PrintStep("Demonstrating OUTPUT parameter vs result set count...");
+
+                var (allOverdue, outputTotal) = await _loanRepository.GetOverdueLoansReportAsync(
+                    asOfDate: null,
+                    minDaysOverdue: 0,
+                    transaction: tx
+                );
+
+                PrintSuccess("Comparison:");
+                PrintInfo($"  Result set Count property: {allOverdue.Count}");
+                PrintInfo($"  OUTPUT parameter value: {outputTotal}");
+                PrintInfo($"  Match: {(allOverdue.Count == outputTotal ? "✓ Yes" : "✗ No (BUG!)")}");
+
+                PrintInfo("\nNote: OUTPUT parameters are useful for returning metadata without");
+                PrintInfo("needing to process the entire result set (e.g., pagination total count).");
+
+                await Delay();
+
+                // Step 7: Demonstrate scalar function for late fee calculation
+                PrintStep("Demonstrating fn_CalculateLateFee scalar function...");
+
+                if (overdueLoans.Count > 0)
+                {
+                    var firstLoan = overdueLoans[0];
+
+                    // Calculate late fee using scalar function
+                    var calculatedFee = await _loanRepository.CalculateLateFeeAsync(firstLoan.LoanId, tx);
+
+                    PrintSuccess($"Late fee calculation for Loan #{firstLoan.LoanId}:");
+                    PrintInfo($"  Member: {firstLoan.MemberName}");
+                    PrintInfo($"  Book: \"{firstLoan.BookTitle}\"");
+                    PrintInfo($"  Days Overdue: {firstLoan.DaysOverdue}");
+                    PrintInfo($"  Stored Procedure calculated: £{firstLoan.CalculatedLateFee:F2}");
+                    PrintInfo($"  Scalar Function calculated:  £{calculatedFee:F2}");
+                    PrintInfo($"  Match: {(firstLoan.CalculatedLateFee == calculatedFee ? "✓ Yes" : "✗ No (BUG!)")}");
+
+                    PrintInfo("\nNote: Scalar functions can be called from C# or used in SQL queries.");
+                    PrintInfo("      Stored procedures are better for complex multi-table operations.");
+                }
+                else
+                {
+                    PrintInfo("No overdue loans to demonstrate scalar function calculation.");
+                }
+            });
+
+            PrintScenarioComplete("Scenario 11");
+        }
+        catch (Exception ex)
+        {
+            PrintError($"Scenario 11 failed: {ex.Message}");
             throw;
         }
     }

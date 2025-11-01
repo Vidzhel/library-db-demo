@@ -10,11 +10,8 @@ namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 /// </summary>
 public class LoanRepository : ILoanRepository
 {
-    private readonly string _connectionString;
-
-    public LoanRepository(string connectionString)
+    public LoanRepository()
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
     }
 
     public async Task<Loan> CreateAsync(Loan loan, SqlTransaction transaction, CancellationToken cancellationToken = default)
@@ -284,6 +281,63 @@ public class LoanRepository : ILoanRepository
         return rowsAffected > 0;
     }
 
+    public async Task<(List<OverdueLoanReport> Loans, int TotalCount)> GetOverdueLoansReportAsync(
+        DateTime? asOfDate,
+        int minDaysOverdue,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand("dbo.sp_GetOverdueLoans", connection, transaction);
+        command.CommandType = System.Data.CommandType.StoredProcedure;
+
+        // Input parameters
+        command.Parameters.Add("@AsOfDate", SqlDbType.DateTime2).Value = (object?)asOfDate ?? DBNull.Value;
+        command.Parameters.Add("@MinDaysOverdue", SqlDbType.Int).Value = minDaysOverdue;
+
+        // Output parameter
+        var totalCountParam = new SqlParameter("@TotalCount", SqlDbType.Int)
+        {
+            Direction = System.Data.ParameterDirection.Output
+        };
+        command.Parameters.Add(totalCountParam);
+
+        var loans = new List<OverdueLoanReport>();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            loans.Add(MapReaderToOverdueLoanReport(reader));
+        }
+
+        // Close reader before accessing output parameter
+        await reader.CloseAsync();
+
+        // Retrieve output parameter value
+        var totalCount = (int)totalCountParam.Value;
+
+        return (loans, totalCount);
+    }
+
+    public async Task<decimal> CalculateLateFeeAsync(
+        int loanId,
+        SqlTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = "SELECT dbo.fn_CalculateLateFee(@LoanId)";
+
+        var connection = transaction.Connection;
+
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.Add("@LoanId", SqlDbType.Int).Value = loanId;
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+
+        // ExecuteScalar returns object, convert to decimal
+        return result != null && result != DBNull.Value ? Convert.ToDecimal(result) : 0.00m;
+    }
+
     /// <summary>
     /// Helper method to add all loan parameters to a command
     /// Centralizes parameter creation to avoid duplication
@@ -341,6 +395,31 @@ public class LoanRepository : ILoanRepository
             notes,
             createdAt,
             updatedAt
+        );
+    }
+
+    /// <summary>
+    /// Maps a SqlDataReader row to an OverdueLoanReport DTO
+    /// Used for the sp_GetOverdueLoans stored procedure results
+    /// </summary>
+    private static OverdueLoanReport MapReaderToOverdueLoanReport(SqlDataReader reader)
+    {
+        return OverdueLoanReport.FromDatabase(
+            loanId: reader.GetInt32(0),
+            memberId: reader.GetInt32(1),
+            memberName: reader.GetString(2),
+            memberEmail: reader.GetString(3),
+            memberPhone: reader.IsDBNull(4) ? null : reader.GetString(4),
+            bookId: reader.GetInt32(5),
+            isbn: reader.GetString(6),
+            bookTitle: reader.GetString(7),
+            publisher: reader.IsDBNull(8) ? null : reader.GetString(8),
+            borrowedAt: reader.GetDateTime(9),
+            dueDate: reader.GetDateTime(10),
+            daysOverdue: reader.GetInt32(11),
+            calculatedLateFee: reader.GetDecimal(12),
+            status: (LoanStatus)reader.GetInt32(13),
+            notes: reader.IsDBNull(14) ? null : reader.GetString(14)
         );
     }
 }

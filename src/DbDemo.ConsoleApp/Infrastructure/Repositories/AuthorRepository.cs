@@ -11,11 +11,8 @@ namespace DbDemo.ConsoleApp.Infrastructure.Repositories;
 /// </summary>
 public class AuthorRepository : IAuthorRepository
 {
-    // Constructor kept for backward compatibility with demos that instantiate this class directly
-    // Connection string is not used as all operations now require explicit transactions
-    public AuthorRepository(string connectionString)
+    public AuthorRepository()
     {
-        // Connection string parameter ignored - all operations use transactions
     }
 
     public async Task<Author> CreateAsync(Author author, SqlTransaction transaction, CancellationToken cancellationToken = default)
