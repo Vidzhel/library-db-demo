@@ -1,5 +1,4 @@
 using Microsoft.Data.SqlClient;
-using Microsoft.Data.SqlClient;
 
 namespace DbDemo.Demos;
 
@@ -225,8 +224,8 @@ public class BulkOperationsDemo
         PrintStep("Demonstrating TVP validation (duplicate ISBN error)...");
         var duplicateBooks = new List<Book>
         {
-            new Book("978-DUPLICATE-01", "Test Book 1", categoryId, 1),
-            new Book("978-DUPLICATE-01", "Test Book 2", categoryId, 1) // Duplicate ISBN
+            new Book("9781234567890", "Test Book 1", categoryId, 1),
+            new Book("9781234567890", "Test Book 2", categoryId, 1) // Duplicate ISBN
         };
 
         try
@@ -326,13 +325,22 @@ public class BulkOperationsDemo
     /// </summary>
     private async Task CleanupBooksAsync()
     {
-        const string sql = "DELETE FROM Books WHERE Id > 0"; // Keep structure, remove all data
-
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        await using var command = new SqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync();
+        // First, delete any loans referencing books to avoid FK constraint violations
+        const string deleteLoans = "DELETE FROM Loans WHERE BookId IN (SELECT Id FROM Books WHERE Id > 0)";
+        await using (var loanCmd = new SqlCommand(deleteLoans, connection))
+        {
+            await loanCmd.ExecuteNonQueryAsync();
+        }
+
+        // Then delete the books
+        const string deleteBooks = "DELETE FROM Books WHERE Id > 0";
+        await using (var bookCmd = new SqlCommand(deleteBooks, connection))
+        {
+            await bookCmd.ExecuteNonQueryAsync();
+        }
     }
 
     #endregion

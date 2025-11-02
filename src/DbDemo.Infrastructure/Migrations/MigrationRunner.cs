@@ -68,7 +68,7 @@ public class MigrationRunner
             }
 
             // 4. Validate checksums (detect tampering)
-            ValidateChecksums(allMigrations);
+            await ValidateChecksums(allMigrations);
 
             // 5. Get pending migrations
             var pendingMigrations = allMigrations.Where(m => !m.IsApplied).ToList();
@@ -219,7 +219,7 @@ public class MigrationRunner
     /// <summary>
     /// Validates that checksums match between files and database (detects tampering)
     /// </summary>
-    private void ValidateChecksums(List<MigrationRecord> migrations)
+    private async Task ValidateChecksums(List<MigrationRecord> migrations)
     {
         var tamperedMigrations = migrations
             .Where(m => m.IsApplied && !m.ChecksumMatches)
@@ -227,26 +227,59 @@ public class MigrationRunner
 
         if (tamperedMigrations.Any())
         {
-            Console.WriteLine();
-            Console.WriteLine("❌ CHECKSUM MISMATCH DETECTED!");
-            Console.WriteLine("The following migrations have been modified after being applied:");
-            Console.WriteLine();
+            // Check if any have PLACEHOLDER checksum (from initial seed data)
+            var placeholderMigrations = tamperedMigrations
+                .Where(m => m.DatabaseChecksum == "PLACEHOLDER")
+                .ToList();
 
-            foreach (var migration in tamperedMigrations)
+            if (placeholderMigrations.Any())
             {
-                Console.WriteLine($"  ❌ {migration.FileName}");
-                Console.WriteLine($"     Expected: {migration.DatabaseChecksum}");
-                Console.WriteLine($"     Actual:   {migration.Checksum}");
+                Console.WriteLine();
+                Console.WriteLine("🔧 Fixing placeholder checksums...");
+
+                await using var connection = new SqlConnection(_connectionString);
+                await connection.OpenAsync();
+
+                foreach (var migration in placeholderMigrations)
+                {
+                    await using var cmd = connection.CreateCommand();
+                    cmd.CommandText = "UPDATE __MigrationsHistory SET Checksum = @Checksum WHERE MigrationVersion = @Version";
+                    cmd.Parameters.AddWithValue("@Checksum", migration.Checksum);
+                    cmd.Parameters.AddWithValue("@Version", migration.Version);
+                    await cmd.ExecuteNonQueryAsync();
+
+                    Console.WriteLine($"  ✅ Fixed checksum for {migration.FileName}");
+                    migration.DatabaseChecksum = migration.Checksum;  // Update in memory
+                }
+
+                // Remove fixed migrations from tampered list
+                tamperedMigrations = tamperedMigrations.Except(placeholderMigrations).ToList();
             }
 
-            Console.WriteLine();
-            Console.WriteLine("⚠️  IMPORTANT: Never modify an applied migration!");
-            Console.WriteLine("   Instead, create a new migration to make changes.");
-            Console.WriteLine();
+            // If there are still tampered migrations (non-placeholder), fail
+            if (tamperedMigrations.Any())
+            {
+                Console.WriteLine();
+                Console.WriteLine("❌ CHECKSUM MISMATCH DETECTED!");
+                Console.WriteLine("The following migrations have been modified after being applied:");
+                Console.WriteLine();
 
-            throw new InvalidOperationException(
-                "Migration integrity check failed. One or more applied migrations have been modified. " +
-                "See output above for details.");
+                foreach (var migration in tamperedMigrations)
+                {
+                    Console.WriteLine($"  ❌ {migration.FileName}");
+                    Console.WriteLine($"     Expected: {migration.DatabaseChecksum}");
+                    Console.WriteLine($"     Actual:   {migration.Checksum}");
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("⚠️  IMPORTANT: Never modify an applied migration!");
+                Console.WriteLine("   Instead, create a new migration to make changes.");
+                Console.WriteLine();
+
+                throw new InvalidOperationException(
+                    "Migration integrity check failed. One or more applied migrations have been modified. " +
+                    "See output above for details.");
+            }
         }
     }
 

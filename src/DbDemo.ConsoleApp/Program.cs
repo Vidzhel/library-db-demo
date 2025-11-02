@@ -45,9 +45,15 @@ internal class Program
         // Initialize repository
         InitializeRepository();
 
-        // Run interactive menu (unless --no-wait specified)
-        if (args.Length == 0 || !args.Contains("--no-wait"))
+        // Handle command-line arguments
+        if (args.Contains("--run-demos") || args.Contains("--demos"))
         {
+            // Run automated demos directly
+            await RunAllDemosAsync();
+        }
+        else if (args.Length == 0 || !args.Contains("--no-wait"))
+        {
+            // Run interactive menu
             await RunInteractiveMenuAsync();
         }
     }
@@ -779,39 +785,37 @@ internal class Program
                 switch (choice)
                 {
                     case 1:
-                        await demoRunner.RunScenario1_BasicBookManagementAsync();
+                        await demoRunner.RunBasicBookManagementAsync();
                         break;
                     case 2:
-                        await demoRunner.RunScenario2_AuthorManagementAsync();
+                        await demoRunner.RunAuthorManagementAsync();
                         break;
                     case 3:
-                        await demoRunner.RunScenario3_MemberManagementAsync();
+                        await demoRunner.RunMemberManagementAsync();
                         break;
                     case 4:
-                        await demoRunner.RunScenario4_CompleteLoanWorkflowAsync();
+                        await demoRunner.RunCompleteLoanWorkflowAsync();
                         break;
                     case 5:
-                        await demoRunner.RunScenario5_OverdueLoanScenarioAsync();
+                        await demoRunner.RunOverdueLoanScenarioAsync();
                         break;
                     case 6:
-                        await demoRunner.RunScenario6_LoanRenewalAsync();
+                        await demoRunner.RunLoanRenewalAsync();
                         break;
-                    // TODO move these to demo runner fo consistency
                     case 7:
-                        await RunConnectionPoolingDemoAsync();
+                        await demoRunner.RunConnectionPoolingAsync();
                         break;
                     case 8:
-                        await RunBulkOperationsDemoAsync();
+                        await demoRunner.RunBulkOperationsAsync();
                         break;
                     case 9:
-                        // TODO remove scene number from function names
-                        await demoRunner.RunScenario10_BookAuditTrailAsync();
+                        await demoRunner.RunBookAuditTrailAsync();
                         break;
                     case 10:
-                        await demoRunner.RunScenario11_OverdueLoansReportAsync();
+                        await demoRunner.RunOverdueLoansReportAsync();
                         break;
                     case 11:
-                        await demoRunner.RunScenario12_StatisticsAnalyticsAsync();
+                        await demoRunner.RunStatisticsAnalyticsAsync();
                         break;
                     case 99:
                         await demoRunner.RunAllScenariosAsync();
@@ -840,6 +844,47 @@ internal class Program
     }
 
     /// <summary>
+    /// Runs all automated demos without interactive prompts
+    /// </summary>
+    private static async Task RunAllDemosAsync()
+    {
+        if (!AreAllRepositoriesInitialized())
+        {
+            Console.WriteLine("❌ Not all repositories are initialized. Cannot run demos.");
+            return;
+        }
+
+        try
+        {
+            var demoRunner = new DemoRunner(
+                _bookRepository!,
+                _authorRepository!,
+                _memberRepository!,
+                _loanRepository!,
+                _categoryRepository!,
+                _bookAuditRepository!,
+                _systemStatisticsRepository!,
+                _connectionString!,
+                withDelays: false  // Disable delays for faster automated execution
+            );
+
+            Console.WriteLine("🚀 Running all automated demos...");
+            Console.WriteLine();
+
+            await demoRunner.RunAllScenariosAsync();
+
+            Console.WriteLine();
+            Console.WriteLine("✅ All automated demos completed successfully!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Demo error: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            Environment.ExitCode = 1;
+        }
+    }
+
+    /// <summary>
     /// Displays the demo menu
     /// </summary>
     private static void DisplayDemoMenu()
@@ -864,68 +909,6 @@ internal class Program
         Console.WriteLine("0. Back to Main Menu");
         Console.WriteLine();
         Console.Write("Enter your choice: ");
-    }
-
-    /// <summary>
-    /// Runs the connection pooling performance demonstration
-    /// </summary>
-    private static async Task RunConnectionPoolingDemoAsync()
-    {
-        if (_configuration == null || _bookRepository == null)
-        {
-            Console.WriteLine("❌ Configuration or repository not initialized. Cannot run demo.");
-            return;
-        }
-
-        try
-        {
-            var appConnectionString = _configuration.GetConnectionString("LibraryDb");
-
-            if (string.IsNullOrEmpty(appConnectionString))
-            {
-                Console.WriteLine("❌ Application connection string not configured!");
-                return;
-            }
-
-            var poolingDemo = new ConnectionPoolingDemo(appConnectionString, _bookRepository);
-            await poolingDemo.RunDemonstrationAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Connection pooling demo error: {ex.Message}");
-            Console.WriteLine($"   Stack trace: {ex.StackTrace}");
-        }
-    }
-
-    /// <summary>
-    /// Runs the bulk operations performance demonstration
-    /// </summary>
-    private static async Task RunBulkOperationsDemoAsync()
-    {
-        if (_configuration == null)
-        {
-            Console.WriteLine("❌ Configuration not initialized. Cannot run demo.");
-            return;
-        }
-
-        try
-        {
-            var appConnectionString = _configuration.GetConnectionString("LibraryDb");
-
-            if (string.IsNullOrEmpty(appConnectionString))
-            {
-                Console.WriteLine("❌ Application connection string not configured!");
-                return;
-            }
-
-            var bulkDemo = new BulkOperationsDemo(appConnectionString);
-            await bulkDemo.RunDemonstrationAsync();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Bulk operations demo error: {ex.Message}");
-            Console.WriteLine($"   Stack trace: {ex.StackTrace}");
-        }
     }
 
     /// <summary>

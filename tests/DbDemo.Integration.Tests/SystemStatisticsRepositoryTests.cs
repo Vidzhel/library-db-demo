@@ -92,8 +92,10 @@ public class SystemStatisticsRepositoryTests : IClassFixture<DatabaseTestFixture
     [Fact]
     public async Task GetByTimeRangeAsync_WithinRange_ShouldReturnMatchingRecords()
     {
-        // Arrange
-        var baseTime = DateTime.UtcNow.AddHours(-2);
+        // Arrange - Truncate to seconds to avoid precision issues between .NET DateTime and SQL Server datetime
+        var now = DateTime.UtcNow.AddHours(-2);
+        var baseTime = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second, DateTimeKind.Utc);
+
         for (int i = 0; i < 10; i++)
         {
             var stat = new SystemStatistic(
@@ -114,8 +116,8 @@ public class SystemStatisticsRepositoryTests : IClassFixture<DatabaseTestFixture
         Assert.True(results.Count >= 3, $"Expected at least 3 records, got {results.Count}");
         Assert.All(results, r =>
         {
-            Assert.True(r.RecordedAt >= startDate);
-            Assert.True(r.RecordedAt <= endDate);
+            Assert.True(r.RecordedAt >= startDate, $"RecordedAt {r.RecordedAt:O} should be >= {startDate:O}");
+            Assert.True(r.RecordedAt <= endDate, $"RecordedAt {r.RecordedAt:O} should be <= {endDate:O}");
         });
     }
 
@@ -123,7 +125,10 @@ public class SystemStatisticsRepositoryTests : IClassFixture<DatabaseTestFixture
     public async Task GetHourlyStatisticsAsync_WithMinuteLevelData_ShouldReturnHourlyAggregates()
     {
         // Arrange - Create 60 minute-level records (1 hour of data)
-        var baseTime = DateTime.UtcNow.AddHours(-2);  // Start 2 hours ago
+        // Truncate to seconds to avoid precision issues between .NET DateTime and SQL Server datetime
+        var now = DateTime.UtcNow.AddHours(-2);
+        var baseTime = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second, DateTimeKind.Utc);
+
         for (int i = 0; i < 60; i++)
         {
             var stat = new SystemStatistic(

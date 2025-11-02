@@ -1,5 +1,4 @@
 using Microsoft.Data.SqlClient;
-using Microsoft.Data.SqlClient;
 
 namespace DbDemo.Demos;
 
@@ -22,6 +21,7 @@ public class DemoRunner
     private readonly ISystemStatisticsRepository _systemStatisticsRepository;
     private readonly string _connectionString;
     private readonly bool _withDelays;
+    private readonly string _runId;  // Unique identifier for this demo run
 
     public DemoRunner(
         IBookRepository bookRepository,
@@ -43,6 +43,44 @@ public class DemoRunner
         _systemStatisticsRepository = systemStatisticsRepository;
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _withDelays = withDelays;
+        _runId = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");  // Generate unique run ID with milliseconds
+    }
+
+    private int _isbnCounter = 0;
+    private int _emailCounter = 0;
+    private int _memberCounter = 0;
+
+    /// <summary>
+    /// Generates a unique ISBN-13 for demo purposes (13 digits only, no dashes)
+    /// </summary>
+    private string GenerateUniqueISBN()
+    {
+        _isbnCounter++;
+        // Create a unique 13-digit ISBN: 978 (prefix) + 10 digits from runId/counter
+        // Format: 978XXXXXXXXXX (exactly 13 digits)
+        var counterPadded = _isbnCounter.ToString("D3");  // Pad counter to 3 digits
+        // Use last 7 digits of runId (which now includes milliseconds) + counter
+        return $"978{_runId.Substring(_runId.Length - 7)}{counterPadded}";  // 978 + 7 digits from runId + 3 digits counter = 13 total
+    }
+
+    /// <summary>
+    /// Generates a unique email address for demo purposes
+    /// </summary>
+    private string GenerateUniqueEmail(string baseName)
+    {
+        _emailCounter++;
+        return $"{baseName}.{_runId}.{_emailCounter}@example.com";
+    }
+
+    /// <summary>
+    /// Generates a unique membership number for demo purposes
+    /// </summary>
+    private string GenerateUniqueMembershipNumber()
+    {
+        _memberCounter++;
+        // Use Ticks for absolute uniqueness
+        var ticks = DateTime.UtcNow.Ticks;
+        return $"MEM-{ticks}-{_memberCounter}";
     }
 
     /// <summary>
@@ -52,33 +90,52 @@ public class DemoRunner
     {
         PrintHeader("AUTOMATED DEMO - ALL SCENARIOS");
 
-        await RunScenario1_BasicBookManagementAsync();
+        // Clean up any existing demo data to ensure idempotent runs
+        await CleanupDatabaseAsync();
+        Console.WriteLine();
+
+        await RunBasicBookManagementAsync();
         await Delay(2000);
 
-        await RunScenario2_AuthorManagementAsync();
+        await RunAuthorManagementAsync();
         await Delay(2000);
 
-        await RunScenario3_MemberManagementAsync();
+        await RunMemberManagementAsync();
         await Delay(2000);
 
-        await RunScenario4_CompleteLoanWorkflowAsync();
+        await RunCompleteLoanWorkflowAsync();
         await Delay(2000);
 
-        await RunScenario5_OverdueLoanScenarioAsync();
+        await RunOverdueLoanScenarioAsync();
         await Delay(2000);
 
-        await RunScenario6_LoanRenewalAsync();
+        await RunLoanRenewalAsync();
+        await Delay(2000);
+
+        await RunConnectionPoolingAsync();
+        await Delay(2000);
+
+        await RunBulkOperationsAsync();
+        await Delay(2000);
+
+        await RunBookAuditTrailAsync();
+        await Delay(2000);
+
+        await RunOverdueLoansReportAsync();
+        await Delay(2000);
+
+        await RunStatisticsAnalyticsAsync();
 
         PrintSuccess("\n\n=== ALL DEMO SCENARIOS COMPLETED SUCCESSFULLY ===\n");
     }
 
     /// <summary>
-    /// Scenario 1: Basic Book Management
+    /// Basic Book Management
     /// Demonstrates creating, searching, and updating books
     /// </summary>
-    public async Task RunScenario1_BasicBookManagementAsync()
+    public async Task RunBasicBookManagementAsync()
     {
-        PrintHeader("SCENARIO 1: Basic Book Management");
+        PrintHeader("Basic Book Management");
 
         try
         {
@@ -105,7 +162,7 @@ public class DemoRunner
 
                 // Step 2: Create a new book
                 PrintStep("Creating a new book...");
-                var book1 = new Book("978-0-545-01022-1", "Harry Potter and the Philosopher's Stone", category.Id, 5);
+                var book1 = new Book(GenerateUniqueISBN(), "Harry Potter and the Philosopher's Stone", category.Id, 5);
                 book1.UpdateDetails(
                     "Harry Potter and the Philosopher's Stone",
                     null,
@@ -124,7 +181,7 @@ public class DemoRunner
 
                 // Step 3: Create another book
                 PrintStep("Creating another book...");
-                var book2 = new Book("978-0-7475-3849-9", "Harry Potter and the Chamber of Secrets", category.Id, 3);
+                var book2 = new Book(GenerateUniqueISBN(), "Harry Potter and the Chamber of Secrets", category.Id, 3);
                 book2.UpdateDetails(
                     "Harry Potter and the Chamber of Secrets",
                     null,
@@ -172,22 +229,22 @@ public class DemoRunner
                 PrintSuccess($"Total books in library: {totalBooks}");
             });
 
-            PrintScenarioComplete("Scenario 1");
+            PrintScenarioComplete("Basic Book Management");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 1 failed: {ex.Message}");
+            PrintError($"Basic Book Management failed: {ex.Message}");
             throw;
         }
     }
 
     /// <summary>
-    /// Scenario 2: Author Management
+    /// Author Management
     /// Demonstrates creating, searching, and updating authors
     /// </summary>
-    public async Task RunScenario2_AuthorManagementAsync()
+    public async Task RunAuthorManagementAsync()
     {
-        PrintHeader("SCENARIO 2: Author Management");
+        PrintHeader("Author Management");
 
         try
         {
@@ -195,7 +252,7 @@ public class DemoRunner
             {
                 // Step 1: Create an author
                 PrintStep("Creating author J.K. Rowling...");
-                var author1 = new Author("Joanne", "Rowling", "jk.rowling@example.com");
+                var author1 = new Author("Joanne", "Rowling", GenerateUniqueEmail("jk.rowling"));
                 author1.UpdateBiography(
                     "British author, best known for writing the Harry Potter fantasy series",
                     new DateTime(1965, 7, 31),
@@ -212,7 +269,7 @@ public class DemoRunner
 
                 // Step 2: Create another author
                 PrintStep("Creating author George R.R. Martin...");
-                var author2 = new Author("George", "Martin", "grrm@example.com");
+                var author2 = new Author("George", "Martin", GenerateUniqueEmail("grrm"));
                 author2.UpdateBiography(
                     "American novelist and short story writer, screenwriter, and television producer",
                     new DateTime(1948, 9, 20),
@@ -256,22 +313,22 @@ public class DemoRunner
                 PrintSuccess($"Total authors in database: {totalAuthors}");
             });
 
-            PrintScenarioComplete("Scenario 2");
+            PrintScenarioComplete("Author Management");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 2 failed: {ex.Message}");
+            PrintError($"Author Management failed: {ex.Message}");
             throw;
         }
     }
 
     /// <summary>
-    /// Scenario 3: Member Management
+    /// Member Management
     /// Demonstrates creating, updating, and managing library members
     /// </summary>
-    public async Task RunScenario3_MemberManagementAsync()
+    public async Task RunMemberManagementAsync()
     {
-        PrintHeader("SCENARIO 3: Member Management");
+        PrintHeader("Member Management");
 
         try
         {
@@ -279,14 +336,15 @@ public class DemoRunner
             {
                 // Step 1: Register a new member
                 PrintStep("Registering new member John Smith...");
+                var johnEmail = GenerateUniqueEmail("john.smith");
                 var member1 = new Member(
-                    "MEM-2024-001",
+                    GenerateUniqueMembershipNumber(),
                     "John",
                     "Smith",
-                    "john.smith@example.com",
+                    johnEmail,
                     new DateTime(1990, 5, 15)
                 );
-                member1.UpdateContactInfo("john.smith@example.com", "+44-20-1234-5678", "123 London Street, London, UK");
+                member1.UpdateContactInfo(johnEmail, "+44-20-1234-5678", "123 London Street, London, UK");
 
                 member1 = await _memberRepository.CreateAsync(member1, tx);
                 PrintSuccess($"Registered member: {member1.FullName} (ID: {member1.Id})");
@@ -301,14 +359,15 @@ public class DemoRunner
 
                 // Step 2: Register another member
                 PrintStep("Registering new member Emma Watson...");
+                var emmaEmail = GenerateUniqueEmail("emma.watson");
                 var member2 = new Member(
-                    "MEM-2024-002",
+                    GenerateUniqueMembershipNumber(),
                     "Emma",
                     "Watson",
-                    "emma.watson@example.com",
+                    emmaEmail,
                     new DateTime(1995, 8, 22)
                 );
-                member2.UpdateContactInfo("emma.watson@example.com", "+44-20-9876-5432", "456 Baker Street, London, UK");
+                member2.UpdateContactInfo(emmaEmail, "+44-20-9876-5432", "456 Baker Street, London, UK");
 
                 member2 = await _memberRepository.CreateAsync(member2, tx);
                 PrintSuccess($"Registered member: {member2.FullName} (ID: {member2.Id})");
@@ -317,7 +376,8 @@ public class DemoRunner
 
                 // Step 3: Update member contact info
                 PrintStep("Updating member contact information...");
-                member1.UpdateContactInfo("john.smith.new@example.com", "+44-20-1111-2222", "789 Oxford Street, London, UK");
+                var johnNewEmail = GenerateUniqueEmail("john.smith.new");
+                member1.UpdateContactInfo(johnNewEmail, "+44-20-1111-2222", "789 Oxford Street, London, UK");
                 await _memberRepository.UpdateAsync(member1, tx);
 
                 var updatedMember = await _memberRepository.GetByIdAsync(member1.Id, tx);
@@ -349,22 +409,22 @@ public class DemoRunner
                 PrintInfo($"  Active Members: {activeMembers}");
             });
 
-            PrintScenarioComplete("Scenario 3");
+            PrintScenarioComplete("Member Management");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 3 failed: {ex.Message}");
+            PrintError($"Member Management failed: {ex.Message}");
             throw;
         }
     }
 
     /// <summary>
-    /// Scenario 4: Complete Loan Workflow (Happy Path)
+    /// Complete Loan Workflow (Happy Path)
     /// Demonstrates the full loan lifecycle from creation to return
     /// </summary>
-    public async Task RunScenario4_CompleteLoanWorkflowAsync()
+    public async Task RunCompleteLoanWorkflowAsync()
     {
-        PrintHeader("SCENARIO 4: Complete Loan Workflow (Happy Path)");
+        PrintHeader("Complete Loan Workflow (Happy Path)");
 
         try
         {
@@ -379,7 +439,7 @@ public class DemoRunner
                 {
                     var categories = await _categoryRepository.GetAllAsync(tx);
                     var category = categories.First();
-                    book = new Book("978-0-316-76948-0", "The Catcher in the Rye", category.Id, 3);
+                    book = new Book(GenerateUniqueISBN(), "The Catcher in the Rye", category.Id, 3);
                     book = await _bookRepository.CreateAsync(book, tx);
                 }
 
@@ -395,7 +455,7 @@ public class DemoRunner
 
                 if (member == null)
                 {
-                    member = new Member("MEM-DEMO-001", "Alice", "Johnson", "alice@example.com", new DateTime(1992, 3, 10));
+                    member = new Member(GenerateUniqueMembershipNumber(), "Alice", "Johnson", GenerateUniqueEmail("alice"), new DateTime(1992, 3, 10));
                     member = await _memberRepository.CreateAsync(member, tx);
                 }
 
@@ -485,22 +545,22 @@ public class DemoRunner
                 PrintInfo($"  Available Copies: {updatedBook?.AvailableCopies}/{updatedBook?.TotalCopies}");
             });
 
-            PrintScenarioComplete("Scenario 4");
+            PrintScenarioComplete("Complete Loan Workflow");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 4 failed: {ex.Message}");
+            PrintError($"Complete Loan Workflow failed: {ex.Message}");
             throw;
         }
     }
 
     /// <summary>
-    /// Scenario 5: Overdue Loan Scenario
+    /// Overdue Loan Scenario
     /// Demonstrates handling overdue loans and late fees
     /// </summary>
-    public async Task RunScenario5_OverdueLoanScenarioAsync()
+    public async Task RunOverdueLoanScenarioAsync()
     {
-        PrintHeader("SCENARIO 5: Overdue Loan Scenario");
+        PrintHeader("Overdue Loan Scenario");
 
         try
         {
@@ -616,22 +676,22 @@ public class DemoRunner
                 }
             });
 
-            PrintScenarioComplete("Scenario 5");
+            PrintScenarioComplete("Overdue Loan Scenario");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 5 failed: {ex.Message}");
+            PrintError($"Overdue Loan Scenario failed: {ex.Message}");
             throw;
         }
     }
 
     /// <summary>
-    /// Scenario 6: Loan Renewal
+    /// Loan Renewal
     /// Demonstrates renewing loans and renewal limits
     /// </summary>
-    public async Task RunScenario6_LoanRenewalAsync()
+    public async Task RunLoanRenewalAsync()
     {
-        PrintHeader("SCENARIO 6: Loan Renewal");
+        PrintHeader("Loan Renewal");
 
         try
         {
@@ -753,22 +813,22 @@ public class DemoRunner
                 PrintInfo($"  Active Loans: {activeLoansCount}");
             });
 
-            PrintScenarioComplete("Scenario 6");
+            PrintScenarioComplete("Loan Renewal");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 6 failed: {ex.Message}");
+            PrintError($"Loan Renewal failed: {ex.Message}");
             throw;
         }
     }
 
     /// <summary>
-    /// Scenario 10: Book Audit Trail
+    /// Book Audit Trail
     /// Demonstrates database trigger-based audit logging for book changes
     /// </summary>
-    public async Task RunScenario10_BookAuditTrailAsync()
+    public async Task RunBookAuditTrailAsync()
     {
-        PrintHeader("SCENARIO 10: Book Audit Trail");
+        PrintHeader("Book Audit Trail");
 
         try
         {
@@ -794,7 +854,7 @@ public class DemoRunner
 
                 // Step 2: Create a new book (INSERT trigger)
                 PrintStep("Creating a new book (INSERT will be audited)...");
-                var book = new Book("978-1-234-56789-0", "Audit Trail Demo Book", category.Id, 5);
+                var book = new Book(GenerateUniqueISBN(), "Audit Trail Demo Book", category.Id, 5);
                 book.UpdateDetails(
                     title: "Audit Trail Demo Book",
                     subtitle: "A Book to Test Database Triggers",
@@ -931,22 +991,22 @@ public class DemoRunner
                 PrintInfo($"  Total DELETE operations: {auditHistory.Count(a => a.Action == "DELETE")}");
             });
 
-            PrintScenarioComplete("Scenario 10");
+            PrintScenarioComplete("Book Audit Trail");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 10 failed: {ex.Message}");
+            PrintError($"Book Audit Trail failed: {ex.Message}");
             throw;
         }
     }
 
     /// <summary>
-    /// Scenario 11: Overdue Loans Report
+    /// Overdue Loans Report
     /// Demonstrates calling a stored procedure with output parameters
     /// </summary>
-    public async Task RunScenario11_OverdueLoansReportAsync()
+    public async Task RunOverdueLoansReportAsync()
     {
-        PrintHeader("SCENARIO 11: Overdue Loans Report (Stored Procedure)");
+        PrintHeader("Overdue Loans Report (Stored Procedure)");
 
         try
         {
@@ -1096,26 +1156,26 @@ public class DemoRunner
                 }
             });
 
-            PrintScenarioComplete("Scenario 11");
+            PrintScenarioComplete("Overdue Loans Report");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 11 failed: {ex.Message}");
+            PrintError($"Overdue Loans Report failed: {ex.Message}");
             throw;
         }
     }
 
     /// <summary>
-    /// Scenario 12: Statistics & Analytics
+    /// Statistics & Analytics
     /// Demonstrates time-series analytics with SQL Server advanced features:
     /// - Moving averages and window functions
     /// - Percentile analysis (P50, P95, P99)
     /// - Anomaly detection using Z-scores
     /// - Trend analysis with growth rates
     /// </summary>
-    public async Task RunScenario12_StatisticsAnalyticsAsync()
+    public async Task RunStatisticsAnalyticsAsync()
     {
-        PrintHeader("SCENARIO 12: Statistics & Analytics");
+        PrintHeader("Statistics & Analytics");
 
         try
         {
@@ -1302,13 +1362,33 @@ public class DemoRunner
                 PrintInfo("  • Business intelligence and forecasting");
             });
 
-            PrintScenarioComplete("Scenario 12");
+            PrintScenarioComplete("Statistics & Analytics");
         }
         catch (Exception ex)
         {
-            PrintError($"Scenario 12 failed: {ex.Message}");
+            PrintError($"Statistics & Analytics failed: {ex.Message}");
             throw;
         }
+    }
+
+    /// <summary>
+    /// Connection Pooling Performance
+    /// Demonstrates the performance benefits of ADO.NET connection pooling
+    /// </summary>
+    public async Task RunConnectionPoolingAsync()
+    {
+        var demo = new ConnectionPoolingDemo(_connectionString, _bookRepository);
+        await demo.RunDemonstrationAsync();
+    }
+
+    /// <summary>
+    /// Bulk Operations Performance
+    /// Compares SqlBulkCopy, Table-Valued Parameters, and batched inserts
+    /// </summary>
+    public async Task RunBulkOperationsAsync()
+    {
+        var demo = new BulkOperationsDemo(_connectionString);
+        await demo.RunDemonstrationAsync();
     }
 
     #region Helper Methods
@@ -1352,6 +1432,44 @@ public class DemoRunner
             await transaction.RollbackAsync(cancellationToken);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Cleans up all demo data from the database to ensure idempotent demo runs
+    /// </summary>
+    private async Task CleanupDatabaseAsync()
+    {
+        PrintStep("Cleaning up database for fresh demo run...");
+
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        // Delete in order to respect foreign key constraints:
+        // 1. Loans (references Books and Members)
+        // 2. BookAuthors (references Books and Authors)
+        // 3. Books
+        // 4. Authors
+        // 5. Members
+        // 6. Book Audits
+        // Note: We keep Categories as they're used across runs
+
+        var commands = new[]
+        {
+            "DELETE FROM Loans",
+            "DELETE FROM BookAuthors",
+            "DELETE FROM BooksAudit",
+            "DELETE FROM Books",
+            "DELETE FROM Authors",
+            "DELETE FROM Members"
+        };
+
+        foreach (var sql in commands)
+        {
+            await using var cmd = new SqlCommand(sql, connection);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        PrintSuccess("Database cleaned successfully");
     }
 
     private async Task Delay(int milliseconds = 1000)
