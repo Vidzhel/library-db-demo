@@ -27,28 +27,93 @@ This project is designed as a teaching tool for students learning database progr
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) installed
 - [.NET 8 or 9 SDK](https://dotnet.microsoft.com/download) installed
 
-### Setup Steps
+### First-Time Setup
 
-1. **Start SQL Server**:
-   ```bash
-   cp .env.example .env  # Edit with your SA password
-   docker compose up -d
-   ```
+#### 1. Start SQL Server
+```bash
+cp .env.example .env  # Edit with your SA password
+docker compose up -d
+```
 
-2. **Configure application secrets**:
-   ```bash
-   cd DbDemo
-   dotnet user-secrets set "ConnectionStrings:SqlServerAdmin" "Server=localhost,1453;User Id=sa;Password=YOUR_PASSWORD;TrustServerCertificate=True;"
-   dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;"
-   ```
+#### 2. Configure Application Secrets
+Navigate to the **project root** and set up user secrets:
 
-3. **Run the application**:
-   ```bash
-   dotnet run --project src/DbDemo.ConsoleApp
-   ```
+```bash
+# Set admin connection (for migrations)
+dotnet user-secrets set "ConnectionStrings:SqlServerAdmin" "Server=localhost,1453;User Id=sa;Password=YOUR_SA_PASSWORD;TrustServerCertificate=True;" --project src/DbDemo.ConsoleApp
 
-4. **Refer to detailed documentation**:
-   - See `docs/xx-....md` for docs per project part (you can check individual commits)
+# Set application connection
+dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;" --project src/DbDemo.ConsoleApp
+
+# Also configure Setup and Scaffolding projects
+dotnet user-secrets set "ConnectionStrings:SqlServerAdmin" "Server=localhost,1453;User Id=sa;Password=YOUR_SA_PASSWORD;TrustServerCertificate=True;" --project src/DbDemo.Setup
+dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;" --project src/DbDemo.Setup
+dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;" --project src/DbDemo.Scaffolding
+```
+
+**Important:** Replace `YOUR_SA_PASSWORD` with the password you set in `.env`
+
+#### 3. Run Database Setup (First Time Only)
+This runs migrations and generates schema code:
+
+```bash
+dotnet run --project src/DbDemo.Setup
+```
+
+Expected output:
+```
+═══════════════════════════════════════════════════════════
+  Database Setup Tool - DbDemo
+  Runs Migrations + Scaffolding
+═══════════════════════════════════════════════════════════
+
+Step 1: Running Database Migrations
+...
+✓ 22 migration(s) executed successfully
+
+Step 2: Running Database Scaffolding
+...
+✓ Generated Tables.cs
+✓ Generated Columns.cs
+
+✓ Setup Completed Successfully!
+```
+
+#### 4. Build the Solution
+```bash
+dotnet build DbDemo.sln
+```
+
+### Running the Application
+
+After first-time setup, simply run:
+
+```bash
+dotnet run --project src/DbDemo.ConsoleApp
+```
+
+The application will:
+1. Connect to the database
+2. Show an interactive menu with demos
+3. Allow you to explore various ADO.NET features
+
+### When to Re-run Setup
+
+Run `dotnet run --project src/DbDemo.Setup` again when:
+- 🔄 You pull new migration files from git
+- 🔄 You create new migrations
+- 🔄 Database schema changes
+
+This ensures:
+- Migrations are applied
+- Generated schema constants are up-to-date
+- Your code compiles correctly
+
+### Refer to Documentation
+
+- See `docs/` folder for detailed guides on each feature
+- Start with `docs/00-docker-setup.md` and progress sequentially
+- Each commit has corresponding documentation
 
 ### Run tests
 
@@ -119,6 +184,17 @@ DbDemo/
 │   │   ├── Repositories/      # Repository implementations (ADO.NET)
 │   │   ├── Migrations/        # Database migration system
 │   │   └── BulkOperations/    # SqlBulkCopy & TVP implementations
+│   │
+│   ├── DbDemo.Infrastructure.SqlKata/  # 🟡 Alternative Infrastructure (SqlKata query builder)
+│   │   ├── Generated/         # Auto-generated schema constants
+│   │   ├── Repositories/      # Repository implementations (SqlKata)
+│   │   └── QueryFactoryProvider.cs
+│   │
+│   ├── DbDemo.Scaffolding/    # 🔧 Schema Code Generator
+│   │   └── Program.cs         # Reads INFORMATION_SCHEMA, generates constants
+│   │
+│   ├── DbDemo.Setup/          # 🔧 Setup Tool
+│   │   └── Program.cs         # Runs migrations + scaffolding
 │   │
 │   ├── DbDemo.Demos/          # 🟣 Demo Scenarios (Depends on: Domain, Application, Infrastructure)
 │   │   └── *Demo.cs           # Demo runners for various features
