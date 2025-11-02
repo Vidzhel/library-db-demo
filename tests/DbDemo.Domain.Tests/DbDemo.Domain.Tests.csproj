@@ -28,8 +28,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Reference to the main project -->
-        <ProjectReference Include="..\..\src\DbDemo.ConsoleApp\DbDemo.ConsoleApp.csproj" />
+      <ProjectReference Include="..\..\src\DbDemo.Domain\DbDemo.Domain.csproj" />
+      <ProjectReference Include="..\..\src\DbDemo.Application\DbDemo.Application.csproj" />
     </ItemGroup>
 
 </Project>

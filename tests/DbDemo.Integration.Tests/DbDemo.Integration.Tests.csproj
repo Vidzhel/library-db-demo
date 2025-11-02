@@ -22,16 +22,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DbDemo.ConsoleApp\DbDemo.ConsoleApp.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="xunit.runner.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DbDemo.Domain\DbDemo.Domain.csproj" />
+    <ProjectReference Include="..\..\src\DbDemo.Application\DbDemo.Application.csproj" />
+    <ProjectReference Include="..\..\src\DbDemo.Infrastructure\DbDemo.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

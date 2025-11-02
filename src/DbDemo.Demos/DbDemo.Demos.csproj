@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DbDemo.Domain\DbDemo.Domain.csproj" />
+    <ProjectReference Include="..\DbDemo.Application\DbDemo.Application.csproj" />
+    <ProjectReference Include="..\DbDemo.Infrastructure\DbDemo.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

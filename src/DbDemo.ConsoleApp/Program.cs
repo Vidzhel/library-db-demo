@@ -1,7 +1,9 @@
-using DbDemo.ConsoleApp.Demos;
-using DbDemo.ConsoleApp.Infrastructure.Migrations;
-using DbDemo.ConsoleApp.Infrastructure.Repositories;
-using DbDemo.ConsoleApp.Models;
+using DbDemo.Demos;
+using DbDemo.Infrastructure.Migrations;
+using DbDemo.Application.Repositories;
+using DbDemo.Infrastructure.Repositories;
+using DbDemo.Domain.Entities;
+using DbDemo.Application.DTOs;
 using Microsoft.Extensions.Configuration;
 
 namespace DbDemo.ConsoleApp.ConsoleApp;

@@ -40,4 +40,11 @@
         </Content>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\DbDemo.Domain\DbDemo.Domain.csproj" />
+      <ProjectReference Include="..\DbDemo.Application\DbDemo.Application.csproj" />
+      <ProjectReference Include="..\DbDemo.Infrastructure\DbDemo.Infrastructure.csproj" />
+      <ProjectReference Include="..\DbDemo.Demos\DbDemo.Demos.csproj" />
+    </ItemGroup>
+
 </Project>

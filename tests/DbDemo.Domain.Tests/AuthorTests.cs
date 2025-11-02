@@ -1,5 +1,5 @@
 using Xunit;
-using DbDemo.ConsoleApp.Models;
+using DbDemo.Domain.Entities;
 using FluentAssertions;
 
 namespace DbDemo.Domain.Tests;

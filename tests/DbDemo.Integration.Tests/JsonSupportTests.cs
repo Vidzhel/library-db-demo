@@ -1,5 +1,7 @@
-using DbDemo.ConsoleApp.Infrastructure.Repositories;
-using DbDemo.ConsoleApp.Models;
+using DbDemo.Infrastructure.Repositories;
+using DbDemo.Application.Repositories;
+using DbDemo.Domain.Entities;
+using DbDemo.Application.DTOs;
 using Xunit;
 
 namespace DbDemo.Integration.Tests;
@@ -53,7 +55,7 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
         // Act
         var createdBook = await _fixture.WithTransactionAsync(async tx =>
         {
-            book.UpdateMetadata(metadata);
+            book.UpdateMetadata(metadata.ToJson());
             return await _bookRepository.CreateAsync(book, tx);
         });
 
@@ -62,14 +64,15 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
             _bookRepository.GetByIdAsync(createdBook.Id, tx));
 
         Assert.NotNull(retrievedBook);
-        Assert.NotNull(retrievedBook.Metadata);
-        Assert.Equal("Science Fiction", retrievedBook.Metadata.Genre);
-        Assert.Equal("Foundation", retrievedBook.Metadata.Series);
-        Assert.Equal(1, retrievedBook.Metadata.SeriesNumber);
-        Assert.Equal(4.5m, retrievedBook.Metadata.Rating);
-        Assert.Contains("sci-fi", retrievedBook.Metadata.Tags!);
-        Assert.Contains("space", retrievedBook.Metadata.Tags!);
-        Assert.Equal(3, retrievedBook.Metadata.Tags!.Count);
+        var parsedMetadata = BookMetadata.FromJson(retrievedBook.MetadataJson);
+        Assert.NotNull(parsedMetadata);
+        Assert.Equal("Science Fiction", parsedMetadata.Genre);
+        Assert.Equal("Foundation", parsedMetadata.Series);
+        Assert.Equal(1, parsedMetadata.SeriesNumber);
+        Assert.Equal(4.5m, parsedMetadata.Rating);
+        Assert.Contains("sci-fi", parsedMetadata.Tags!);
+        Assert.Contains("space", parsedMetadata.Tags!);
+        Assert.Equal(3, parsedMetadata.Tags!.Count);
     }
 
     [Fact]
@@ -98,7 +101,7 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
 
         await _fixture.WithTransactionAsync(async tx =>
         {
-            book.UpdateMetadata(updatedMetadata);
+            book.UpdateMetadata(updatedMetadata.ToJson());
             await _bookRepository.UpdateAsync(book, tx);
         });
 
@@ -106,12 +109,14 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
         var retrievedBook = await _fixture.WithTransactionAsync(tx =>
             _bookRepository.GetByIdAsync(book.Id, tx));
 
-        Assert.NotNull(retrievedBook?.Metadata);
-        Assert.Equal("Epic Fantasy", retrievedBook.Metadata.Genre);
-        Assert.Equal("The Lord of the Rings", retrievedBook.Metadata.Series);
-        Assert.Equal(1, retrievedBook.Metadata.SeriesNumber);
-        Assert.Equal(5.0m, retrievedBook.Metadata.Rating);
-        Assert.Equal(4, retrievedBook.Metadata.Tags!.Count);
+        Assert.NotNull(retrievedBook?.MetadataJson);
+        var parsedMetadata = BookMetadata.FromJson(retrievedBook.MetadataJson);
+        Assert.NotNull(parsedMetadata);
+        Assert.Equal("Epic Fantasy", parsedMetadata.Genre);
+        Assert.Equal("The Lord of the Rings", parsedMetadata.Series);
+        Assert.Equal(1, parsedMetadata.SeriesNumber);
+        Assert.Equal(5.0m, parsedMetadata.Rating);
+        Assert.Equal(4, parsedMetadata.Tags!.Count);
     }
 
     [Fact]
@@ -149,8 +154,9 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
         Assert.Equal(2, sciFiBooks.Count);
         Assert.All(sciFiBooks, book =>
         {
-            Assert.NotNull(book.Metadata);
-            Assert.Equal("Science Fiction", book.Metadata.Genre);
+            var metadata = BookMetadata.FromJson(book.MetadataJson);
+            Assert.NotNull(metadata);
+            Assert.Equal("Science Fiction", metadata.Genre);
         });
         Assert.Contains(sciFiBooks, b => b.Title == "Dune");
         Assert.Contains(sciFiBooks, b => b.Title == "Neuromancer");
@@ -203,8 +209,9 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
         Assert.Equal(2, lotrBooks.Count);
         Assert.All(lotrBooks, book =>
         {
-            Assert.NotNull(book.Metadata);
-            Assert.Equal("The Lord of the Rings", book.Metadata.Series);
+            var metadata = BookMetadata.FromJson(book.MetadataJson);
+            Assert.NotNull(metadata);
+            Assert.Equal("The Lord of the Rings", metadata.Series);
         });
     }
 
@@ -291,7 +298,11 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
 
         // Assert
         Assert.Equal(2, booksWithMetadata.Count);
-        Assert.All(booksWithMetadata, book => Assert.NotNull(book.Metadata));
+        Assert.All(booksWithMetadata, book =>
+        {
+            var metadata = BookMetadata.FromJson(book.MetadataJson);
+            Assert.NotNull(metadata);
+        });
         Assert.DoesNotContain(booksWithMetadata, b => b.Title == "Book Without Metadata");
     }
 
@@ -311,7 +322,7 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
             _bookRepository.GetByIdAsync(createdBook.Id, tx));
 
         Assert.NotNull(retrievedBook);
-        Assert.Null(retrievedBook.Metadata);
+        Assert.Null(retrievedBook.MetadataJson);
     }
 
     [Fact]
@@ -338,7 +349,7 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
         // Act
         var createdBook = await _fixture.WithTransactionAsync(async tx =>
         {
-            book.UpdateMetadata(metadata);
+            book.UpdateMetadata(metadata.ToJson());
             return await _bookRepository.CreateAsync(book, tx);
         });
 
@@ -346,13 +357,15 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
         var retrievedBook = await _fixture.WithTransactionAsync(tx =>
             _bookRepository.GetByIdAsync(createdBook.Id, tx));
 
-        Assert.NotNull(retrievedBook?.Metadata);
-        Assert.Equal("Computer Science", retrievedBook.Metadata.Genre);
-        Assert.Equal(3, retrievedBook.Metadata.Tags!.Count);
-        Assert.Equal(4.7m, retrievedBook.Metadata.Rating);
-        Assert.NotNull(retrievedBook.Metadata.CustomFields);
-        Assert.Equal("Advanced", retrievedBook.Metadata.CustomFields["difficulty"]);
-        Assert.Equal("3rd", retrievedBook.Metadata.CustomFields["edition"]);
+        Assert.NotNull(retrievedBook?.MetadataJson);
+        var parsedMetadata = BookMetadata.FromJson(retrievedBook.MetadataJson);
+        Assert.NotNull(parsedMetadata);
+        Assert.Equal("Computer Science", parsedMetadata.Genre);
+        Assert.Equal(3, parsedMetadata.Tags!.Count);
+        Assert.Equal(4.7m, parsedMetadata.Rating);
+        Assert.NotNull(parsedMetadata.CustomFields);
+        Assert.Equal("Advanced", parsedMetadata.CustomFields["difficulty"]);
+        Assert.Equal("3rd", parsedMetadata.CustomFields["edition"]);
     }
 
     [Fact]
@@ -413,7 +426,7 @@ public class JsonSupportTests : IClassFixture<DatabaseTestFixture>, IAsyncLifeti
         BookMetadata metadata)
     {
         var book = new Book(isbn, title, categoryId, 5);
-        book.UpdateMetadata(metadata);
+        book.UpdateMetadata(metadata.ToJson());
 
         return await _fixture.WithTransactionAsync(tx =>
             _bookRepository.CreateAsync(book, tx));

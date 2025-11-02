@@ -1,6 +1,7 @@
-using DbDemo.ConsoleApp.Infrastructure.BulkOperations;
-using DbDemo.ConsoleApp.Models;
+using DbDemo.Infrastructure.BulkOperations;
+using DbDemo.Domain.Entities;
 using Microsoft.Data.SqlClient;
+using DbDemo.Application.DTOs;
 using Xunit;
 
 namespace DbDemo.Integration.Tests.BulkOperations;

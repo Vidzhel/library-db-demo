@@ -1,5 +1,7 @@
-using DbDemo.ConsoleApp.Infrastructure.Repositories;
-using DbDemo.ConsoleApp.Models;
+using DbDemo.Application.Repositories;
+using DbDemo.Infrastructure.Repositories;
+using DbDemo.Domain.Entities;
+using DbDemo.Application.DTOs;
 using System.Diagnostics;
 using Xunit;
 
