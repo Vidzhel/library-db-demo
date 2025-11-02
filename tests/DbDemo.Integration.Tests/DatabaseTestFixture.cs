@@ -79,6 +79,81 @@ public class DatabaseTestFixture : IDisposable
         await transaction.CommitAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Executes a scalar query and returns the result
+    /// </summary>
+    public async Task<T> ExecuteScalarAsync<T>(string sql, params (string Name, object Value)[] parameters)
+    {
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = new SqlCommand(sql, connection);
+        foreach (var (name, value) in parameters)
+        {
+            command.Parameters.AddWithValue(name, value);
+        }
+
+        var result = await command.ExecuteScalarAsync();
+        return (T)result!;
+    }
+
+    /// <summary>
+    /// Executes a query and returns multiple rows
+    /// </summary>
+    public async Task<List<T>> ExecuteQueryAsync<T>(string sql, params (string Name, object Value)[] parameters)
+    {
+        var results = new List<T>();
+
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = new SqlCommand(sql, connection);
+        foreach (var (name, value) in parameters)
+        {
+            command.Parameters.AddWithValue(name, value);
+        }
+
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            // For tuples
+            if (typeof(T).IsValueType && typeof(T).IsGenericType && typeof(T).Name.StartsWith("ValueTuple"))
+            {
+                var fieldCount = reader.FieldCount;
+                var values = new object[fieldCount];
+                for (int i = 0; i < fieldCount; i++)
+                {
+                    values[i] = reader.GetValue(i);
+                }
+                results.Add((T)Activator.CreateInstance(typeof(T), values)!);
+            }
+            // For simple types
+            else
+            {
+                results.Add((T)reader.GetValue(0));
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Executes a non-query command (INSERT, UPDATE, DELETE)
+    /// </summary>
+    public async Task<int> ExecuteNonQueryAsync(string sql, params (string Name, object Value)[] parameters)
+    {
+        await using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = new SqlCommand(sql, connection);
+        foreach (var (name, value) in parameters)
+        {
+            command.Parameters.AddWithValue(name, value);
+        }
+
+        return await command.ExecuteNonQueryAsync();
+    }
+
     public void Dispose()
     {
         // Cleanup if needed
