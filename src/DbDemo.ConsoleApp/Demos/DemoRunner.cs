@@ -16,6 +16,7 @@ public class DemoRunner
     private readonly ILoanRepository _loanRepository;
     private readonly ICategoryRepository _categoryRepository;
     private readonly IBookAuditRepository _bookAuditRepository;
+    private readonly ISystemStatisticsRepository _systemStatisticsRepository;
     private readonly string _connectionString;
     private readonly bool _withDelays;
 
@@ -26,6 +27,7 @@ public class DemoRunner
         ILoanRepository loanRepository,
         ICategoryRepository categoryRepository,
         IBookAuditRepository bookAuditRepository,
+        ISystemStatisticsRepository systemStatisticsRepository,
         string connectionString,
         bool withDelays = true)
     {
@@ -35,6 +37,7 @@ public class DemoRunner
         _loanRepository = loanRepository;
         _categoryRepository = categoryRepository;
         _bookAuditRepository = bookAuditRepository;
+        _systemStatisticsRepository = systemStatisticsRepository;
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _withDelays = withDelays;
     }
@@ -1095,6 +1098,212 @@ public class DemoRunner
         catch (Exception ex)
         {
             PrintError($"Scenario 11 failed: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Scenario 12: Statistics & Analytics
+    /// Demonstrates time-series analytics with SQL Server advanced features:
+    /// - Moving averages and window functions
+    /// - Percentile analysis (P50, P95, P99)
+    /// - Anomaly detection using Z-scores
+    /// - Trend analysis with growth rates
+    /// </summary>
+    public async Task RunScenario12_StatisticsAnalyticsAsync()
+    {
+        PrintHeader("SCENARIO 12: Statistics & Analytics");
+
+        try
+        {
+            await WithTransactionAsync(async tx =>
+            {
+                // Step 1: Show recent statistics data
+                PrintStep("Retrieving recent statistics data...");
+                var recentStats = await _systemStatisticsRepository.GetRecentAsync(10, tx);
+
+                if (recentStats.Count > 0)
+                {
+                    PrintSuccess($"Found {recentStats.Count} recent statistics records:");
+                    foreach (var stat in recentStats.Take(5))
+                    {
+                        PrintInfo($"  {stat.GetSummary()}");
+                    }
+                }
+                else
+                {
+                    PrintWarning("No statistics data found. The seed data might not have been generated.");
+                }
+
+                await Delay();
+
+                // Step 2: Hourly aggregations
+                PrintStep("Analyzing hourly aggregated statistics...");
+                var hourlyStats = await _systemStatisticsRepository.GetHourlyStatisticsAsync(tx);
+
+                if (hourlyStats.Count > 0)
+                {
+                    PrintSuccess($"Found {hourlyStats.Count} hourly aggregations:");
+                    PrintInfo("\n  Latest 5 hours:");
+                    PrintInfo($"  {"Hour",-20} {"Samples",-10} {"Avg Loans",-12} {"Avg CPU%",-12} {"Avg Mem%",-12}");
+                    PrintInfo($"  {new string('-', 70)}");
+
+                    foreach (var stat in hourlyStats.Take(5))
+                    {
+                        PrintInfo($"  {stat.HourBucket:yyyy-MM-dd HH:mm}   {stat.SampleCount,-10} {stat.AvgActiveLoans,-12:F1} {stat.AvgCPUUsage,-12:F1} {stat.AvgMemoryUsage,-12:F1}");
+                    }
+                }
+
+                await Delay();
+
+                // Step 3: Daily aggregations
+                PrintStep("Analyzing daily aggregated statistics...");
+                var dailyStats = await _systemStatisticsRepository.GetDailyStatisticsAsync(tx);
+
+                if (dailyStats.Count > 0)
+                {
+                    PrintSuccess($"Found {dailyStats.Count} daily aggregations:");
+                    PrintInfo("\n  Latest 7 days:");
+                    PrintInfo($"  {"Date",-12} {"Samples",-10} {"New Loans",-12} {"Avg CPU%",-12} {"StdDev CPU",-12}");
+                    PrintInfo($"  {new string('-', 65)}");
+
+                    foreach (var stat in dailyStats.Take(7))
+                    {
+                        PrintInfo($"  {stat.DayDate:yyyy-MM-dd}   {stat.SampleCount,-10} {stat.TotalNewLoans,-12} {stat.AvgCPUUsage,-12:F1} {stat.StdDevCPUUsage,-12:F2}");
+                    }
+                }
+
+                await Delay();
+
+                // Step 4: Moving averages with window functions
+                PrintStep("Calculating 7-period moving averages...");
+                var startDate = DateTime.UtcNow.AddDays(-7);
+                var endDate = DateTime.UtcNow;
+                var movingAvgs = await _systemStatisticsRepository.GetMovingAveragesAsync(startDate, endDate, 7, tx);
+
+                if (movingAvgs.Count > 0)
+                {
+                    PrintSuccess($"Calculated moving averages for {movingAvgs.Count} data points:");
+                    PrintInfo("\n  Sample (showing every 360th record ~ hourly for last 6 hours):");
+                    PrintInfo($"  {"Time",-20} {"Actual Loans",-15} {"7-Period MA",-15} {"Actual CPU%",-12} {"7-Period MA",-12}");
+                    PrintInfo($"  {new string('-', 80)}");
+
+                    var sample = movingAvgs.Where((x, i) => i % 360 == 0).Take(6);
+                    foreach (var ma in sample)
+                    {
+                        PrintInfo($"  {ma.RecordedAt:yyyy-MM-dd HH:mm}   {ma.ActiveLoansCount,-15} {ma.MovingAvgActiveLoans,-15:F1} {ma.CPUUsagePercent,-12:F1} {ma.MovingAvgCPU,-12:F1}");
+                    }
+
+                    PrintInfo("\n  Note: Moving averages smooth out short-term fluctuations and highlight trends.");
+                }
+
+                await Delay();
+
+                // Step 5: Percentile analysis
+                PrintStep("Calculating percentile distributions (P50, P95, P99)...");
+                var analysisStart = DateTime.UtcNow.AddDays(-30);
+                var analysisEnd = DateTime.UtcNow;
+                var percentiles = await _systemStatisticsRepository.GetPercentilesAsync(analysisStart, analysisEnd, tx);
+
+                if (percentiles.Count > 0)
+                {
+                    PrintSuccess($"Percentile analysis for {percentiles.Count} metrics:");
+                    PrintInfo($"\n  {"Metric",-25} {"Min",-10} {"P50",-10} {"P95",-10} {"P99",-10} {"Max",-10}");
+                    PrintInfo($"  {new string('-', 75)}");
+
+                    foreach (var p in percentiles)
+                    {
+                        PrintInfo($"  {p.MetricName,-25} {p.MinValue,-10:F1} {p.P50_Median,-10:F1} {p.P95,-10:F1} {p.P99,-10:F1} {p.MaxValue,-10:F1}");
+                    }
+
+                    PrintInfo("\n  Note: P95 and P99 are useful for SLA monitoring and capacity planning.");
+                }
+
+                await Delay();
+
+                // Step 6: Anomaly detection
+                PrintStep("Detecting anomalies using Z-score method (2 standard deviations)...");
+                var anomalies = await _systemStatisticsRepository.DetectAnomaliesAsync(analysisStart, analysisEnd, 2.0, tx);
+
+                if (anomalies.Count > 0)
+                {
+                    PrintSuccess($"Detected {anomalies.Count} anomalous data points:");
+                    PrintInfo("\n  Latest 5 anomalies:");
+                    PrintInfo($"  {"Time",-20} {"CPU%",-10} {"Anomaly",-10} {"Z-Score",-10} {"Memory%",-10} {"Anomaly",-10}");
+                    PrintInfo($"  {new string('-', 70)}");
+
+                    foreach (var anomaly in anomalies.Take(5))
+                    {
+                        var cpuColor = anomaly.CPUAnomaly == "HIGH" ? ConsoleColor.Red : ConsoleColor.Yellow;
+                        var memColor = anomaly.MemoryAnomaly == "HIGH" ? ConsoleColor.Red : ConsoleColor.Yellow;
+
+                        Console.Write($"  {anomaly.RecordedAt:yyyy-MM-dd HH:mm}   ");
+                        Console.Write($"{anomaly.CPUUsagePercent,-10:F1} ");
+
+                        Console.ForegroundColor = cpuColor;
+                        Console.Write($"{anomaly.CPUAnomaly ?? "---",-10} ");
+                        Console.ResetColor();
+
+                        Console.Write($"{anomaly.CPUZScore,-10:F2} {anomaly.MemoryUsagePercent,-10:F1} ");
+
+                        Console.ForegroundColor = memColor;
+                        Console.Write($"{anomaly.MemoryAnomaly ?? "---",-10}");
+                        Console.ResetColor();
+
+                        Console.WriteLine();
+                    }
+
+                    PrintInfo("\n  Note: Anomalies are values >2σ from the mean. Useful for alerting.");
+                }
+                else
+                {
+                    PrintInfo("No anomalies detected in the dataset.");
+                }
+
+                await Delay();
+
+                // Step 7: Trend analysis
+                PrintStep("Performing trend analysis with growth rates and rankings...");
+                var trends = await _systemStatisticsRepository.GetTrendAnalysisAsync(analysisStart, analysisEnd, tx);
+
+                if (trends.Count > 0)
+                {
+                    PrintSuccess($"Trend analysis for {trends.Count} days:");
+                    PrintInfo("\n  Latest 7 days:");
+                    PrintInfo($"  {"Date",-12} {"Avg Loans",-12} {"DoD Change",-12} {"DoD %",-10} {"7-Day MA",-12} {"Rank",-6}");
+                    PrintInfo($"  {new string('-', 70)}");
+
+                    foreach (var trend in trends.Take(7))
+                    {
+                        var changeSymbol = trend.DayOverDayLoansChange >= 0 ? "+" : "";
+                        PrintInfo($"  {trend.DayDate:yyyy-MM-dd}   {trend.AvgActiveLoans,-12:F1} {changeSymbol}{trend.DayOverDayLoansChange,-12:F1} {trend.DayOverDayLoansChangePercent,-10:F1}% {trend.SevenDayAvgLoans,-12:F1} #{trend.RankByActiveLoans,-5}");
+                    }
+
+                    PrintInfo("\n  Note: Growth rates help identify trends; rankings identify peak days.");
+                }
+
+                await Delay();
+
+                // Summary
+                PrintStep("Analytics demonstration complete!");
+                PrintInfo("\nThis scenario demonstrated:");
+                PrintInfo("  ✓ Time-window aggregations (hourly, daily)");
+                PrintInfo("  ✓ Window functions (OVER, PARTITION BY) for moving averages");
+                PrintInfo("  ✓ Statistical functions (PERCENTILE_CONT, STDEV)");
+                PrintInfo("  ✓ Anomaly detection using Z-score method");
+                PrintInfo("  ✓ Trend analysis with growth rates and rankings");
+                PrintInfo("\nThese patterns are essential for:");
+                PrintInfo("  • Performance monitoring and capacity planning");
+                PrintInfo("  • SLA tracking (P95, P99 response times)");
+                PrintInfo("  • Alerting on unusual system behavior");
+                PrintInfo("  • Business intelligence and forecasting");
+            });
+
+            PrintScenarioComplete("Scenario 12");
+        }
+        catch (Exception ex)
+        {
+            PrintError($"Scenario 12 failed: {ex.Message}");
             throw;
         }
     }

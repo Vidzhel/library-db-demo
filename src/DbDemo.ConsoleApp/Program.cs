@@ -20,6 +20,7 @@ internal class Program
     private static ILoanRepository? _loanRepository;
     private static ICategoryRepository? _categoryRepository;
     private static IBookAuditRepository? _bookAuditRepository;
+    private static ISystemStatisticsRepository? _systemStatisticsRepository;
 
     static async Task Main(string[] args)
     {
@@ -260,6 +261,7 @@ internal class Program
             _loanRepository = new LoanRepository();
             _categoryRepository = new CategoryRepository();
             _bookAuditRepository = new BookAuditRepository();
+            _systemStatisticsRepository = new SystemStatisticsRepository();
             Console.WriteLine("✅ All repositories initialized");
         }
         catch (Exception ex)
@@ -767,6 +769,7 @@ internal class Program
                     _loanRepository!,
                     _categoryRepository!,
                     _bookAuditRepository!,
+                    _systemStatisticsRepository!,
                     _connectionString!,
                     withDelays: true
                 );
@@ -791,21 +794,25 @@ internal class Program
                     case 6:
                         await demoRunner.RunScenario6_LoanRenewalAsync();
                         break;
+                    // TODO move these to demo runner fo consistency
                     case 7:
-                        await demoRunner.RunAllScenariosAsync();
-                        break;
-                    // TODO: Move these to demo runner for consistency
-                    case 8:
                         await RunConnectionPoolingDemoAsync();
                         break;
-                    case 9:
+                    case 8:
                         await RunBulkOperationsDemoAsync();
                         break;
-                    case 10:
+                    case 9:
+                        // TODO remove scene number from function names
                         await demoRunner.RunScenario10_BookAuditTrailAsync();
                         break;
-                    case 11:
+                    case 10:
                         await demoRunner.RunScenario11_OverdueLoansReportAsync();
+                        break;
+                    case 11:
+                        await demoRunner.RunScenario12_StatisticsAnalyticsAsync();
+                        break;
+                    case 99:
+                        await demoRunner.RunAllScenariosAsync();
                         break;
                     default:
                         Console.WriteLine("❌ Invalid choice. Please try again.");
@@ -840,17 +847,18 @@ internal class Program
         Console.WriteLine("║         AUTOMATED DEMO SCENARIOS       ║");
         Console.WriteLine("╚════════════════════════════════════════╝");
         Console.WriteLine();
-        Console.WriteLine("1. Scenario 1: Basic Book Management");
-        Console.WriteLine("2. Scenario 2: Author Management");
-        Console.WriteLine("3. Scenario 3: Member Management");
-        Console.WriteLine("4. Scenario 4: Complete Loan Workflow (Happy Path)");
-        Console.WriteLine("5. Scenario 5: Overdue Loan Scenario");
-        Console.WriteLine("6. Scenario 6: Loan Renewal");
-        Console.WriteLine("7. Run ALL Scenarios");
-        Console.WriteLine("8. Connection Pooling Performance Demo");
-        Console.WriteLine("9. Bulk Operations Performance Demo");
-        Console.WriteLine("10. Scenario 10: Book Audit Trail");
-        Console.WriteLine("11. Scenario 11: Overdue Loans Report");
+        Console.WriteLine("1. Basic Book Management");
+        Console.WriteLine("2. Author Management");
+        Console.WriteLine("3. Member Management");
+        Console.WriteLine("4. Complete Loan Workflow (Happy Path)");
+        Console.WriteLine("5. Overdue Loan Scenario");
+        Console.WriteLine("6. Loan Renewal");
+        Console.WriteLine("7. Connection Pooling Performance Demo");
+        Console.WriteLine("8. Bulk Operations Performance Demo");
+        Console.WriteLine("9. Book Audit Trail");
+        Console.WriteLine("10. Overdue Loans Report");
+        Console.WriteLine("11. Statistics & Analytics");
+        Console.WriteLine("99. Run ALL Scenarios");
         Console.WriteLine("0. Back to Main Menu");
         Console.WriteLine();
         Console.Write("Enter your choice: ");
