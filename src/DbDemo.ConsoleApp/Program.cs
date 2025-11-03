@@ -1,21 +1,28 @@
 using DbDemo.Demos;
 using DbDemo.Infrastructure.Migrations;
 using DbDemo.Application.Repositories;
-using DbDemo.Infrastructure.Repositories;
 using DbDemo.Domain.Entities;
 using DbDemo.Application.DTOs;
+using DbDemo.ConsoleApp.Infrastructure;
 using Microsoft.Extensions.Configuration;
 
 namespace DbDemo.ConsoleApp.ConsoleApp;
 
 /// <summary>
-/// Library Management System - ADO.NET Demo Application
-/// This application demonstrates working with databases using ADO.NET
+/// Library Management System - Multi-Provider Demo Application
+/// This application demonstrates working with databases using three different approaches:
+/// 1. ADO.NET (raw SQL)
+/// 2. SqlKata (query builder)
+/// 3. Entity Framework Core (ORM)
 /// </summary>
 internal class Program
 {
     private static IConfiguration? _configuration;
     private static string? _connectionString;
+    private static RepositoryFactory? _repositoryFactory;
+    private static RepositoryProvider _selectedProvider = RepositoryProvider.AdoNet;
+
+    // Repository instances (created by factory)
     private static IBookRepository? _bookRepository;
     private static IAuthorRepository? _authorRepository;
     private static IMemberRepository? _memberRepository;
@@ -26,10 +33,14 @@ internal class Program
 
     static async Task Main(string[] args)
     {
-        Console.WriteLine("===========================================");
-        Console.WriteLine("Library Management System - ADO.NET Demo");
-        Console.WriteLine("===========================================");
+        Console.WriteLine("=======================================================");
+        Console.WriteLine("Library Management System - Multi-Provider Demo");
+        Console.WriteLine("Demonstrating: ADO.NET | SqlKata | Entity Framework");
+        Console.WriteLine("=======================================================");
         Console.WriteLine();
+
+        // Parse command-line arguments for provider selection
+        ParseProviderArgument(args);
 
         // Load configuration from multiple sources
         LoadConfiguration();
@@ -42,8 +53,14 @@ internal class Program
 
         Console.WriteLine();
 
-        // Initialize repository
-        InitializeRepository();
+        // Allow user to select provider if not specified via command line
+        if (!args.Any(a => a.StartsWith("--provider=")) && !args.Contains("--run-demos"))
+        {
+            SelectProvider();
+        }
+
+        // Initialize repositories with selected provider
+        InitializeRepositories();
 
         // Handle command-line arguments
         if (args.Contains("--run-demos") || args.Contains("--demos"))
@@ -56,6 +73,66 @@ internal class Program
             // Run interactive menu
             await RunInteractiveMenuAsync();
         }
+    }
+
+    /// <summary>
+    /// Parses command-line arguments to determine repository provider.
+    /// Usage: --provider=adonet|sqlkata|efcore
+    /// </summary>
+    private static void ParseProviderArgument(string[] args)
+    {
+        var providerArg = args.FirstOrDefault(a => a.StartsWith("--provider="));
+        if (providerArg != null)
+        {
+            var providerName = providerArg.Split('=')[1].ToLowerInvariant();
+            _selectedProvider = providerName switch
+            {
+                "adonet" or "ado" => RepositoryProvider.AdoNet,
+                "sqlkata" or "kata" => RepositoryProvider.SqlKata,
+                "efcore" or "ef" => RepositoryProvider.EFCore,
+                _ => RepositoryProvider.AdoNet
+            };
+
+            Console.WriteLine($"📌 Provider selected via command line: {_selectedProvider}");
+            Console.WriteLine();
+        }
+    }
+
+    /// <summary>
+    /// Allows user to interactively select the repository provider.
+    /// </summary>
+    private static void SelectProvider()
+    {
+        Console.WriteLine("╔════════════════════════════════════════════════════════════════╗");
+        Console.WriteLine("║            SELECT REPOSITORY PROVIDER                          ║");
+        Console.WriteLine("╚════════════════════════════════════════════════════════════════╝");
+        Console.WriteLine();
+        Console.WriteLine("1. ADO.NET (Raw SQL)");
+        Console.WriteLine("   ✓ Maximum control and performance");
+        Console.WriteLine("   ✓ Direct SQL queries with SqlCommand/SqlDataReader");
+        Console.WriteLine("   ✓ All repositories fully implemented");
+        Console.WriteLine();
+        Console.WriteLine("2. SqlKata Query Builder");
+        Console.WriteLine("   ✓ Fluent API for building queries");
+        Console.WriteLine("   ✓ Type-safe query construction");
+        Console.WriteLine("   ⚠️  BookRepository implemented (demo)");
+        Console.WriteLine();
+        Console.WriteLine("3. Entity Framework Core (ORM)");
+        Console.WriteLine("   ✓ LINQ queries with expression trees");
+        Console.WriteLine("   ✓ Automatic change tracking");
+        Console.WriteLine("   ⚠️  Book/Author/Member repositories implemented (demo)");
+        Console.WriteLine();
+        Console.Write("Enter your choice (1-3) [default: 1]: ");
+
+        var input = Console.ReadLine();
+        _selectedProvider = input?.Trim() switch
+        {
+            "2" => RepositoryProvider.SqlKata,
+            "3" => RepositoryProvider.EFCore,
+            _ => RepositoryProvider.AdoNet
+        };
+
+        Console.WriteLine();
     }
 
     /// <summary>
@@ -241,9 +318,9 @@ internal class Program
     }
 
     /// <summary>
-    /// Initializes the repositories with the application connection string
+    /// Initializes the repositories using the selected provider.
     /// </summary>
-    private static void InitializeRepository()
+    private static void InitializeRepositories()
     {
         if (_configuration == null)
         {
@@ -263,14 +340,90 @@ internal class Program
             }
 
             _connectionString = appConnectionString;
-            _bookRepository = new BookRepository();
-            _authorRepository = new AuthorRepository();
-            _memberRepository = new MemberRepository();
-            _loanRepository = new LoanRepository();
-            _categoryRepository = new CategoryRepository();
-            _bookAuditRepository = new BookAuditRepository();
-            _systemStatisticsRepository = new SystemStatisticsRepository();
-            Console.WriteLine("✅ All repositories initialized");
+
+            // Create factory with selected provider
+            _repositoryFactory = new RepositoryFactory(_selectedProvider, _connectionString);
+
+            Console.WriteLine("╔════════════════════════════════════════════════════════════════╗");
+            Console.WriteLine($"║  Repository Provider: {_repositoryFactory.ProviderName,-42} ║");
+            Console.WriteLine("╠════════════════════════════════════════════════════════════════╣");
+            Console.WriteLine($"  {_repositoryFactory.ProviderDescription}");
+            Console.WriteLine($"  Status: {_repositoryFactory.GetImplementationStatus()}");
+            Console.WriteLine("╚════════════════════════════════════════════════════════════════╝");
+            Console.WriteLine();
+
+            // Create repository instances using factory
+            try
+            {
+                _bookRepository = _repositoryFactory.CreateBookRepository();
+                Console.WriteLine("  ✅ BookRepository initialized");
+            }
+            catch (NotSupportedException ex)
+            {
+                Console.WriteLine($"  ⚠️  BookRepository: {ex.Message}");
+            }
+
+            try
+            {
+                _authorRepository = _repositoryFactory.CreateAuthorRepository();
+                Console.WriteLine("  ✅ AuthorRepository initialized");
+            }
+            catch (NotSupportedException ex)
+            {
+                Console.WriteLine($"  ⚠️  AuthorRepository: {ex.Message}");
+            }
+
+            try
+            {
+                _memberRepository = _repositoryFactory.CreateMemberRepository();
+                Console.WriteLine("  ✅ MemberRepository initialized");
+            }
+            catch (NotSupportedException ex)
+            {
+                Console.WriteLine($"  ⚠️  MemberRepository: {ex.Message}");
+            }
+
+            try
+            {
+                _loanRepository = _repositoryFactory.CreateLoanRepository();
+                Console.WriteLine("  ✅ LoanRepository initialized");
+            }
+            catch (NotSupportedException ex)
+            {
+                Console.WriteLine($"  ⚠️  LoanRepository: {ex.Message}");
+            }
+
+            try
+            {
+                _categoryRepository = _repositoryFactory.CreateCategoryRepository();
+                Console.WriteLine("  ✅ CategoryRepository initialized");
+            }
+            catch (NotSupportedException ex)
+            {
+                Console.WriteLine($"  ⚠️  CategoryRepository: {ex.Message}");
+            }
+
+            try
+            {
+                _bookAuditRepository = _repositoryFactory.CreateBookAuditRepository();
+                Console.WriteLine("  ✅ BookAuditRepository initialized");
+            }
+            catch (NotSupportedException ex)
+            {
+                Console.WriteLine($"  ⚠️  BookAuditRepository: {ex.Message}");
+            }
+
+            try
+            {
+                _systemStatisticsRepository = _repositoryFactory.CreateSystemStatisticsRepository();
+                Console.WriteLine("  ✅ SystemStatisticsRepository initialized");
+            }
+            catch (NotSupportedException ex)
+            {
+                Console.WriteLine($"  ⚠️  SystemStatisticsRepository: {ex.Message}");
+            }
+
+            Console.WriteLine();
         }
         catch (Exception ex)
         {

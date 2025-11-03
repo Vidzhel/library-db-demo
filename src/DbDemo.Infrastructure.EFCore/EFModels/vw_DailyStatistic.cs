@@ -1,0 +1,61 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
+
+namespace DbDemo.Infrastructure.EFCore.EFModels;
+
+[Keyless]
+public partial class vw_DailyStatistic
+{
+    public DateOnly? DayDate { get; set; }
+
+    public int? SampleCount { get; set; }
+
+    public double? AvgActiveLoans { get; set; }
+
+    public int? MinActiveLoans { get; set; }
+
+    public int? MaxActiveLoans { get; set; }
+
+    public int? TotalNewLoans { get; set; }
+
+    public int? TotalReturnedLoans { get; set; }
+
+    public double? AvgActiveMembers { get; set; }
+
+    public double? AvgOverdueLoans { get; set; }
+
+    public double? AvgBooksAvailable { get; set; }
+
+    [Column(TypeName = "decimal(38, 6)")]
+    public decimal? AvgDatabaseSizeMB { get; set; }
+
+    public int? AvgActiveConnections { get; set; }
+
+    [Column(TypeName = "decimal(38, 6)")]
+    public decimal? AvgQueryTimeMs { get; set; }
+
+    [Column(TypeName = "decimal(38, 6)")]
+    public decimal? AvgCPUUsage { get; set; }
+
+    [Column(TypeName = "decimal(38, 6)")]
+    public decimal? AvgMemoryUsage { get; set; }
+
+    [Column(TypeName = "decimal(5, 2)")]
+    public decimal? MinCPUUsage { get; set; }
+
+    [Column(TypeName = "decimal(5, 2)")]
+    public decimal? MaxCPUUsage { get; set; }
+
+    public double? StdDevCPUUsage { get; set; }
+
+    [Column(TypeName = "decimal(5, 2)")]
+    public decimal? MinMemoryUsage { get; set; }
+
+    [Column(TypeName = "decimal(5, 2)")]
+    public decimal? MaxMemoryUsage { get; set; }
+
+    public double? StdDevMemoryUsage { get; set; }
+}
