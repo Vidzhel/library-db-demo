@@ -38,12 +38,10 @@ This project is designed as a teaching tool for students learning database progr
 
 ## 🚀 Quick Start
 
-**⚡ Want to get started fast?** See [`QUICKSTART.md`](QUICKSTART.md) for a 5-minute setup guide!
-
 ### Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) installed
-- [.NET 8 or 9 SDK](https://dotnet.microsoft.com/download) installed
+- [.NET 9 SDK](https://dotnet.microsoft.com/download) installed
 
 ### First-Time Setup
 
