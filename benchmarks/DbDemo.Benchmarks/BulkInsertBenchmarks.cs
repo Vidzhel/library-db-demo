@@ -1,8 +1,8 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
-using DbDemo.ConsoleApp.Infrastructure.BulkOperations;
-using DbDemo.ConsoleApp.Models;
+using DbDemo.Domain.Entities;
+using DbDemo.Infrastructure.BulkOperations;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 

@@ -47,59 +47,10 @@ This project is designed as a teaching tool for students learning database progr
 
 ### First-Time Setup
 
-#### 1. Start SQL Server
+Start SQL Server:
 ```bash
 cp .env.example .env  # Edit with your SA password
 docker-compose -f .meta/docker-compose.yml up --build -d
-```
-
-#### 2. Configure Application Secrets
-Navigate to the **project root** and set up user secrets:
-
-```bash
-# Set admin connection (for migrations)
-dotnet user-secrets set "ConnectionStrings:SqlServerAdmin" "Server=localhost,1453;User Id=sa;Password=YOUR_SA_PASSWORD;TrustServerCertificate=True;" --project src/DbDemo.ConsoleApp
-
-# Set application connection
-dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;" --project src/DbDemo.ConsoleApp
-
-# Also configure Setup and Scaffolding projects
-dotnet user-secrets set "ConnectionStrings:SqlServerAdmin" "Server=localhost,1453;User Id=sa;Password=YOUR_SA_PASSWORD;TrustServerCertificate=True;" --project src/DbDemo.Setup
-dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;" --project src/DbDemo.Setup
-dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;" --project src/DbDemo.Scaffolding
-```
-
-**Important:** Replace `YOUR_SA_PASSWORD` with the password you set in `.env`
-
-#### 3. Run Database Setup (First Time Only)
-This runs migrations and generates schema code:
-
-```bash
-dotnet run --project src/DbDemo.Setup
-```
-
-Expected output:
-```
-═══════════════════════════════════════════════════════════
-  Database Setup Tool - DbDemo
-  Runs Migrations + Scaffolding
-═══════════════════════════════════════════════════════════
-
-Step 1: Running Database Migrations
-...
-✓ 22 migration(s) executed successfully
-
-Step 2: Running Database Scaffolding
-...
-✓ Generated Tables.cs
-✓ Generated Columns.cs
-
-✓ Setup Completed Successfully!
-```
-
-#### 4. Build the Solution
-```bash
-dotnet build DbDemo.sln
 ```
 
 ### Running the Application
@@ -136,11 +87,18 @@ This ensures:
 ### Run tests
 
 ```bash
-dotnet test -p tests/DbDemo.Domain.Tests
+dotnet test tests/DbDemo.Domain.Tests
 ```
 
 ```bash
-dotnet test -p tests/DbDemo.Integration.Tests
+dotnet test tests/DbDemo.Integration.Tests
+```
+
+
+### Run benchmarks
+
+```bash
+dotnet run --project benchmarks/DbDemo.Benchmarks/ --configuration Release -- all
 ```
 
 ## 📚 Learning Path

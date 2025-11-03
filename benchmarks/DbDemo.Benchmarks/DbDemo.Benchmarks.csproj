@@ -16,7 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DbDemo.ConsoleApp\DbDemo.ConsoleApp.csproj" />
+    <ProjectReference Include="..\..\src\DbDemo.Domain\DbDemo.Domain.csproj" />
+    <ProjectReference Include="..\..\src\DbDemo.Infrastructure\DbDemo.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

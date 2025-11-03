@@ -27,6 +27,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo.Infrastructure.EFCor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo.Infrastructure.EFCore.CodeFirst", "src\DbDemo.Infrastructure.EFCore.CodeFirst\DbDemo.Infrastructure.EFCore.CodeFirst.csproj", "{4C833826-9821-46F9-B03F-832D9B981AAB}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", "{FF443E7B-9046-4DB7-98B0-224278550A9E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DbDemo.Benchmarks", "benchmarks\DbDemo.Benchmarks\DbDemo.Benchmarks.csproj", "{A6EC76C9-6319-4E1A-98A0-4A97E2E42F56}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -77,6 +81,10 @@ Global
 		{4C833826-9821-46F9-B03F-832D9B981AAB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4C833826-9821-46F9-B03F-832D9B981AAB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4C833826-9821-46F9-B03F-832D9B981AAB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A6EC76C9-6319-4E1A-98A0-4A97E2E42F56}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A6EC76C9-6319-4E1A-98A0-4A97E2E42F56}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A6EC76C9-6319-4E1A-98A0-4A97E2E42F56}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A6EC76C9-6319-4E1A-98A0-4A97E2E42F56}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{6C2951BC-E992-4F42-BE01-0D0648726D1A} = {651CDF3F-6063-49DF-93CF-1C2E744F8C2E}
@@ -88,5 +96,6 @@ Global
 		{40DD1A7B-3EAC-4289-96D7-05123850EB9D} = {651CDF3F-6063-49DF-93CF-1C2E744F8C2E}
 		{D435413C-828C-470A-A5F6-44248371874F} = {651CDF3F-6063-49DF-93CF-1C2E744F8C2E}
 		{4C833826-9821-46F9-B03F-832D9B981AAB} = {651CDF3F-6063-49DF-93CF-1C2E744F8C2E}
+		{A6EC76C9-6319-4E1A-98A0-4A97E2E42F56} = {FF443E7B-9046-4DB7-98B0-224278550A9E}
 	EndGlobalSection
 EndGlobal
