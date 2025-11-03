@@ -1,22 +1,40 @@
-# Library Management System - ADO.NET Demo
+# Library Management System - Database Programming Demo
 
-A comprehensive demonstration project for learning ADO.NET and database programming in .NET, built incrementally to showcase best practices and common patterns.
+A comprehensive demonstration project for learning database programming in .NET, built incrementally to showcase best practices and common patterns across multiple data access approaches.
 
 ## 🎓 About This Project
 
-This project is designed as a teaching tool for students learning database programming with ADO.NET. It demonstrates:
+This project is designed as a teaching tool for students learning database programming with .NET. It demonstrates **three complementary approaches** to data access:
 
-- **Clean Architecture** with multi-project structure
+### 1. ADO.NET (Raw SQL)
 - Direct database access using `Microsoft.Data.SqlClient`
 - Manual migration management
 - CRUD operations with parameterized queries
 - Transactions and isolation levels
 - Async programming with cancellation support
 - Bulk operations (SqlBulkCopy and Table-Valued Parameters)
-- Advanced SQL features (triggers, stored procedures, functions, CTEs, etc.)
+- Advanced SQL features (triggers, stored procedures, functions, CTEs, window functions)
 - Performance optimization and benchmarking
+
+### 2. Entity Framework Core - Database-First
+- Scaffolding existing databases to generate entity classes
+- Reverse engineering database schema
+- Working with databases where schema already exists
+- Understanding Database-First workflow
+
+### 3. Entity Framework Core - Code-First
+- Pure POCO entities without Data Annotations
+- Fluent API for all configuration
+- EF Core migrations system
+- Advanced patterns: soft delete, computed columns, composite keys
+- Global query filters and automatic timestamp management
+- Semi-rich domain entities with behavior methods
+
+### Cross-Cutting Concerns
+- **Clean Architecture** with multi-project structure
 - Repository pattern with interface-based abstraction
 - Separation of concerns (Domain, Application, Infrastructure)
+- Multiple infrastructure implementations (swappable data access)
 
 ## 🚀 Quick Start
 
@@ -180,15 +198,22 @@ DbDemo/
 │   │   ├── Repositories/      # Repository interfaces (I*Repository)
 │   │   └── DTOs/              # Data Transfer Objects
 │   │
-│   ├── DbDemo.Infrastructure/ # 🟡 Infrastructure Layer (Depends on: Domain, Application)
+│   ├── DbDemo.Infrastructure/ # 🟡 Infrastructure Layer - ADO.NET (Depends on: Domain, Application)
 │   │   ├── Repositories/      # Repository implementations (ADO.NET)
 │   │   ├── Migrations/        # Database migration system
 │   │   └── BulkOperations/    # SqlBulkCopy & TVP implementations
 │   │
-│   ├── DbDemo.Infrastructure.SqlKata/  # 🟡 Alternative Infrastructure (SqlKata query builder)
+│   ├── DbDemo.Infrastructure.SqlKata/  # 🟡 Infrastructure Layer - SqlKata (Query builder)
 │   │   ├── Generated/         # Auto-generated schema constants
 │   │   ├── Repositories/      # Repository implementations (SqlKata)
 │   │   └── QueryFactoryProvider.cs
+│   │
+│   ├── DbDemo.Infrastructure.EFCore.CodeFirst/  # 🟡 Infrastructure Layer - EF Core Code-First
+│   │   ├── Entities/          # Infrastructure entities (Category, Author, Book, BookAuthor)
+│   │   ├── Configuration/     # Fluent API entity configurations
+│   │   ├── Repositories/      # Repository implementations (EF Core)
+│   │   ├── Migrations/        # EF Core migrations
+│   │   └── LibraryCodeFirstDbContext.cs
 │   │
 │   ├── DbDemo.Scaffolding/    # 🔧 Schema Code Generator
 │   │   └── Program.cs         # Reads INFORMATION_SCHEMA, generates constants
@@ -219,12 +244,17 @@ DbDemo.Domain (Core - No dependencies)
     ↑
 DbDemo.Application (Business Logic)
     ↑
-DbDemo.Infrastructure (Data Access)
+DbDemo.Infrastructure.* (Data Access - Multiple implementations)
+    ├── DbDemo.Infrastructure (ADO.NET)
+    ├── DbDemo.Infrastructure.SqlKata (Query Builder)
+    └── DbDemo.Infrastructure.EFCore.CodeFirst (EF Core)
     ↑
 DbDemo.Demos, DbDemo.ConsoleApp (Outer Layer)
 ```
 
 **Key principle**: Dependencies point inward. The Domain layer has no external dependencies and contains pure business logic.
+
+**Multiple Infrastructure Implementations**: The project demonstrates the **Strategy Pattern** with three interchangeable data access implementations. All implement the same repository interfaces defined in the Application layer, allowing you to switch between ADO.NET, SqlKata, and EF Core Code-First at runtime.
 
 ### Architecture Benefits
 
@@ -240,7 +270,9 @@ DbDemo.Demos, DbDemo.ConsoleApp (Outer Layer)
 |---------|---------------|---------------|
 | **DbDemo.Domain** | Business entities, domain logic, validation | Nothing (pure domain) |
 | **DbDemo.Application** | Use cases, business workflows, interfaces | Domain |
-| **DbDemo.Infrastructure** | Database access, external services | Domain, Application |
+| **DbDemo.Infrastructure** | Database access via ADO.NET | Domain, Application |
+| **DbDemo.Infrastructure.SqlKata** | Database access via SqlKata query builder | Domain, Application |
+| **DbDemo.Infrastructure.EFCore.CodeFirst** | Database access via EF Core Code-First | Domain, Application |
 | **DbDemo.Demos** | Feature demonstrations | Domain, Application, Infrastructure |
 | **DbDemo.ConsoleApp** | User interface (console) | All projects |
 
@@ -250,16 +282,93 @@ After working through this project, you will understand:
 
 1. ✅ **Clean Architecture** - Multi-project structure with proper separation of concerns
 2. ✅ **ADO.NET** fundamentals and architecture
-3. ✅ **Repository Pattern** - Interface-based abstraction for data access
-4. ✅ Safe database access (parameterized queries, preventing SQL injection)
-5. ✅ Resource management (using statements, connection pooling)
-6. ✅ Transaction handling and isolation levels
-7. ✅ Async/await patterns with databases
-8. ✅ Performance optimization (bulk operations, indexing)
-9. ✅ Advanced SQL features (triggers, procedures, functions, window functions, CTEs)
-10. ✅ Manual database migration strategies
-11. ✅ Testing database code (unit tests and integration tests)
-12. ✅ **Domain-Driven Design** - Rich domain models with business logic
+3. ✅ **Entity Framework Core** - Both Database-First and Code-First approaches
+4. ✅ **Repository Pattern** - Interface-based abstraction for data access
+5. ✅ **Strategy Pattern** - Multiple interchangeable infrastructure implementations
+6. ✅ Safe database access (parameterized queries, preventing SQL injection)
+7. ✅ Resource management (using statements, connection pooling)
+8. ✅ Transaction handling and isolation levels
+9. ✅ Async/await patterns with databases
+10. ✅ Performance optimization (bulk operations, indexing)
+11. ✅ Advanced SQL features (triggers, procedures, functions, window functions, CTEs)
+12. ✅ Migration strategies (manual SQL and EF Core migrations)
+13. ✅ Testing database code (unit tests and integration tests)
+14. ✅ **Domain-Driven Design** - Rich domain models with business logic
+15. ✅ **Fluent API** - Type-safe configuration without Data Annotations
+16. ✅ **Advanced EF Core patterns** - Soft delete, computed columns, global query filters
+17. ✅ **Comparing data access approaches** - Trade-offs between ADO.NET, query builders, and ORMs
+
+## 🔀 Data Access Approaches Comparison
+
+This project demonstrates three different approaches to database access, each with its own trade-offs:
+
+### ADO.NET (Raw SQL)
+**Best for:** Performance-critical code, complex queries, full control
+
+**Pros:**
+- Maximum performance and control
+- No abstraction overhead
+- Direct access to all SQL Server features
+- Explicit resource management
+- Best for stored procedures and complex SQL
+
+**Cons:**
+- Most verbose code
+- Manual mapping between database and domain objects
+- More prone to errors (typos in SQL strings)
+- Requires more testing
+- Manual schema change tracking
+
+**Use when:** You need maximum performance, complex queries, or full control over SQL execution.
+
+### Entity Framework Core - Code-First
+**Best for:** New projects, rapid development, strong typing
+
+**Pros:**
+- Type-safe queries (LINQ)
+- Automatic change tracking
+- Built-in migration system
+- Convention-based configuration
+- Excellent for CRUD operations
+- Clean, maintainable code
+
+**Cons:**
+- Performance overhead from abstraction
+- Generated SQL may not be optimal
+- Learning curve for advanced features
+- Can hide what's actually happening
+- Not ideal for complex queries
+
+**Use when:** Starting a new project, prioritizing maintainability over raw performance, or when CRUD operations dominate.
+
+### SqlKata (Query Builder)
+**Best for:** Dynamic queries, middle ground between ADO.NET and EF Core
+
+**Pros:**
+- Type-safe query building
+- More performant than EF Core
+- More maintainable than raw SQL
+- Excellent for dynamic filtering/sorting
+- Database-agnostic queries
+
+**Cons:**
+- Still requires manual mapping
+- No change tracking
+- No migration system
+- Less feature-rich than EF Core
+- Smaller community/ecosystem
+
+**Use when:** You need dynamic query building, want better performance than EF Core, but want more structure than raw ADO.NET.
+
+### Which Should You Choose?
+
+**For this educational project:** Learn all three! Understanding the trade-offs helps you make informed decisions in real projects.
+
+**For real projects:**
+- Start with EF Core for most applications
+- Use ADO.NET for performance-critical sections
+- Consider query builders for complex dynamic queries
+- Mix and match within the same application (Clean Architecture allows this!)
 
 ## ⚠️ Important Notes
 
