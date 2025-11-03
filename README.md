@@ -50,7 +50,7 @@ This project is designed as a teaching tool for students learning database progr
 #### 1. Start SQL Server
 ```bash
 cp .env.example .env  # Edit with your SA password
-docker compose up -d
+docker-compose -f .meta/docker-compose.yml up --build -d
 ```
 
 #### 2. Configure Application Secrets
@@ -136,11 +136,11 @@ This ensures:
 ### Run tests
 
 ```bash
-cd tests/DbDemo.Domain.Tests && dotnet test
+dotnet test -p tests/DbDemo.Domain.Tests
 ```
 
 ```bash
-cd tests/DbDemo.Integration.Tests && dotnet test
+dotnet test -p tests/DbDemo.Integration.Tests
 ```
 
 ## 📚 Learning Path

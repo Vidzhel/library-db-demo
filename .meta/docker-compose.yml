@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    build:
+      context: ..
+      dockerfile: .meta/Dockerfile
     container_name: dbdemo-sqlserver
     environment:
       - ACCEPT_EULA=Y
@@ -13,12 +15,10 @@ services:
     volumes:
       # Persist database files
       - sqlserver-data:/var/opt/mssql
-      # Optional: Add initialization scripts
-      - ./scripts/init:/docker-entrypoint-initdb.d
     networks:
       - dbdemo-network
     healthcheck:
-      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD:-YourStrong@Passw0rd}" -Q "SELECT 1" || exit 1
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD:-YourStrong@Passw0rd}" -Q "SELECT 1" -C || exit 1
       interval: 10s
       timeout: 3s
       retries: 10
