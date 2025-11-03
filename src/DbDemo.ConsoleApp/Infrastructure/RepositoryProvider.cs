@@ -18,8 +18,14 @@ public enum RepositoryProvider
     SqlKata,
 
     /// <summary>
-    /// Entity Framework Core - Full-featured ORM.
+    /// Entity Framework Core (Database-First) - Full-featured ORM with scaffolded entities.
     /// Demonstrates: LINQ queries, change tracking, expression trees, compiled queries.
     /// </summary>
-    EFCore
+    EFCore,
+
+    /// <summary>
+    /// Entity Framework Core Code-First - Full-featured ORM with code-first migrations.
+    /// Demonstrates: Entity definition, Fluent API, migrations, data seeding, simplified schema.
+    /// </summary>
+    EFCoreCodeFirst
 }

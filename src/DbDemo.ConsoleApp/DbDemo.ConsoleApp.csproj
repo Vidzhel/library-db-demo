@@ -47,6 +47,7 @@
       <ProjectReference Include="..\DbDemo.Infrastructure.SqlKata\DbDemo.Infrastructure.SqlKata.csproj" />
       <ProjectReference Include="..\DbDemo.Infrastructure.EFCore\DbDemo.Infrastructure.EFCore.csproj" />
       <ProjectReference Include="..\DbDemo.Demos\DbDemo.Demos.csproj" />
+      <ProjectReference Include="..\DbDemo.Infrastructure.EFCore.CodeFirst\DbDemo.Infrastructure.EFCore.CodeFirst.csproj" />
     </ItemGroup>
 
 </Project>

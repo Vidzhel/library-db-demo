@@ -3,7 +3,9 @@ using DbDemo.Application.Repositories;
 using AdoNetRepositories = DbDemo.Infrastructure.Repositories;
 using SqlKataRepositories = DbDemo.Infrastructure.SqlKata.Repositories;
 using EFCoreRepositories = DbDemo.Infrastructure.EFCore.Repositories;
+using EFCoreCodeFirstRepositories = DbDemo.Infrastructure.EFCore.CodeFirst.Repositories;
 using DbDemo.Infrastructure.EFCore;
+using DbDemo.Infrastructure.EFCore.CodeFirst;
 using Microsoft.EntityFrameworkCore;
 
 namespace DbDemo.ConsoleApp.Infrastructure;
@@ -21,19 +23,28 @@ public class RepositoryFactory
     private readonly RepositoryProvider _provider;
     private readonly string _connectionString;
     private LibraryDbContext? _dbContext;
+    private LibraryCodeFirstDbContext? _codeFirstDbContext;
 
     public RepositoryFactory(RepositoryProvider provider, string connectionString)
     {
         _provider = provider;
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
 
-        // For EF Core, create a single DbContext instance
+        // For EF Core Database-First, create a single DbContext instance
         // Note: In production, use DI with scoped lifetime
         if (_provider == RepositoryProvider.EFCore)
         {
             var optionsBuilder = new DbContextOptionsBuilder<LibraryDbContext>();
             optionsBuilder.UseSqlServer(_connectionString);
             _dbContext = new LibraryDbContext(optionsBuilder.Options);
+        }
+
+        // For EF Core Code-First, create a separate DbContext instance
+        if (_provider == RepositoryProvider.EFCoreCodeFirst)
+        {
+            var optionsBuilder = new DbContextOptionsBuilder<LibraryCodeFirstDbContext>();
+            optionsBuilder.UseSqlServer(_connectionString);
+            _codeFirstDbContext = new LibraryCodeFirstDbContext(optionsBuilder.Options);
         }
     }
 
@@ -44,7 +55,8 @@ public class RepositoryFactory
     {
         RepositoryProvider.AdoNet => "ADO.NET (Raw SQL)",
         RepositoryProvider.SqlKata => "SqlKata Query Builder",
-        RepositoryProvider.EFCore => "Entity Framework Core",
+        RepositoryProvider.EFCore => "Entity Framework Core (Database-First)",
+        RepositoryProvider.EFCoreCodeFirst => "Entity Framework Core (Code-First)",
         _ => "Unknown"
     };
 
@@ -55,7 +67,8 @@ public class RepositoryFactory
     {
         RepositoryProvider.AdoNet => "Maximum control and performance with raw SQL queries",
         RepositoryProvider.SqlKata => "Fluent query builder - middle ground between ORM and raw SQL",
-        RepositoryProvider.EFCore => "Full-featured ORM with LINQ, change tracking, and expression trees",
+        RepositoryProvider.EFCore => "Full-featured ORM with LINQ, scaffolded entities from existing database",
+        RepositoryProvider.EFCoreCodeFirst => "Full-featured ORM with Code-First migrations and simplified schema",
         _ => "Unknown provider"
     };
 
@@ -68,7 +81,8 @@ public class RepositoryFactory
         {
             RepositoryProvider.AdoNet => new AdoNetRepositories.BookRepository(),
             RepositoryProvider.SqlKata => new SqlKataRepositories.BookRepository(),
-            RepositoryProvider.EFCore => new DbDemo.Infrastructure.EFCore.Repositories.BookRepository(_dbContext!),
+            RepositoryProvider.EFCore => new EFCoreRepositories.BookRepository(_dbContext!),
+            RepositoryProvider.EFCoreCodeFirst => new EFCoreCodeFirstRepositories.BookRepository(_codeFirstDbContext!),
             _ => throw new NotSupportedException($"Provider {_provider} is not supported")
         };
     }
@@ -82,7 +96,8 @@ public class RepositoryFactory
         {
             RepositoryProvider.AdoNet => new AdoNetRepositories.AuthorRepository(),
             RepositoryProvider.SqlKata => throw new NotSupportedException("SqlKata AuthorRepository not yet implemented"),
-            RepositoryProvider.EFCore => new DbDemo.Infrastructure.EFCore.Repositories.AuthorRepository(_dbContext!),
+            RepositoryProvider.EFCore => new EFCoreRepositories.AuthorRepository(_dbContext!),
+            RepositoryProvider.EFCoreCodeFirst => new EFCoreCodeFirstRepositories.AuthorRepository(_codeFirstDbContext!),
             _ => throw new NotSupportedException($"Provider {_provider} is not supported")
         };
     }
@@ -175,6 +190,7 @@ public class RepositoryFactory
             RepositoryProvider.AdoNet => "✅ All repositories implemented",
             RepositoryProvider.SqlKata => "⚠️  Only BookRepository implemented (demo)",
             RepositoryProvider.EFCore => "⚠️  BookRepository, AuthorRepository, MemberRepository implemented (demo)",
+            RepositoryProvider.EFCoreCodeFirst => "⚠️  BookRepository, AuthorRepository implemented (Code-First demo with simplified schema)",
             _ => "❌ No repositories implemented"
         };
     }
