@@ -53,7 +53,10 @@ try
         throw new DirectoryNotFoundException($"Migrations directory not found: {migrationsPath}");
     }
 
-    var runner = new MigrationRunner(adminConnectionString, migrationsPath);
+    // Get database name from configuration (defaults to LibraryDb)
+    var databaseName = configuration["Database:Name"] ?? "LibraryDb";
+
+    var runner = new MigrationRunner(adminConnectionString, migrationsPath, databaseName);
     var executedCount = await runner.RunMigrationsAsync();
 
     Console.WriteLine();
@@ -168,26 +171,39 @@ static string FindProjectRoot(string currentDirectory)
 
 static void ExpandConnectionStrings(IConfiguration configuration)
 {
+    // Expand ConnectionStrings section
     var connectionStrings = configuration.GetSection("ConnectionStrings");
     foreach (var conn in connectionStrings.GetChildren())
     {
-        var value = conn.Value;
-        if (string.IsNullOrEmpty(value)) continue;
+        ExpandConfigValue(configuration, conn);
+    }
 
-        // Replace ${VAR} with environment variable values
-        var expanded = System.Text.RegularExpressions.Regex.Replace(
-            value,
-            @"\$\{([^}]+)\}",
-            match =>
-            {
-                var varName = match.Groups[1].Value;
-                return Environment.GetEnvironmentVariable(varName) ?? match.Value;
-            });
+    // Expand Database section
+    var database = configuration.GetSection("Database");
+    foreach (var dbConfig in database.GetChildren())
+    {
+        ExpandConfigValue(configuration, dbConfig);
+    }
+}
 
-        // Update the configuration value
-        if (expanded != value)
+static void ExpandConfigValue(IConfiguration configuration, IConfigurationSection configSection)
+{
+    var value = configSection.Value;
+    if (string.IsNullOrEmpty(value)) return;
+
+    // Replace ${VAR} with environment variable values
+    var expanded = System.Text.RegularExpressions.Regex.Replace(
+        value,
+        @"\$\{([^}]+)\}",
+        match =>
         {
-            configuration[conn.Path] = expanded;
-        }
+            var varName = match.Groups[1].Value;
+            return Environment.GetEnvironmentVariable(varName) ?? match.Value;
+        });
+
+    // Update the configuration value
+    if (expanded != value)
+    {
+        configuration[configSection.Path] = expanded;
     }
 }

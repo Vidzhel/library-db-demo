@@ -20,18 +20,18 @@ USE master;
 GO
 
 -- Create database
-IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'LibraryDb')
+IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'$(DB_NAME)')
 BEGIN
-    CREATE DATABASE LibraryDb;
-    PRINT '✅ Database LibraryDb created.';
+    CREATE DATABASE [$(DB_NAME)];
+    PRINT '✅ Database $(DB_NAME) created.';
 END
 GO
 
-USE LibraryDb;
+USE [$(DB_NAME)];
 GO
 
 -- Set to SIMPLE recovery for development
-ALTER DATABASE LibraryDb SET RECOVERY SIMPLE;
+ALTER DATABASE [$(DB_NAME)] SET RECOVERY SIMPLE;
 GO
 
 USE master;
@@ -53,12 +53,12 @@ BEGIN
     WITH PASSWORD = N'$(APP_PASSWORD)',
         CHECK_POLICY = ON,
         CHECK_EXPIRATION = OFF,
-        DEFAULT_DATABASE = LibraryDb;
+        DEFAULT_DATABASE = [$(DB_NAME)];
     PRINT '✅ Login $(APP_USER) created.';
 END
 GO
 
-USE LibraryDb;
+USE [$(DB_NAME)];
 GO
 
 -- Create user
@@ -77,7 +77,7 @@ GRANT EXECUTE TO [$(APP_USER)];
 GRANT VIEW DEFINITION TO [$(APP_USER)];
 
 PRINT '✅ Application user setup completed!';
-PRINT 'Connection: Server=localhost,1453;Database=LibraryDb;User Id=$(APP_USER);Password=$(APP_PASSWORD);TrustServerCertificate=True;';
+PRINT 'Connection: Server=localhost,1453;Database=$(DB_NAME);User Id=$(APP_USER);Password=$(APP_PASSWORD);TrustServerCertificate=True;';
 GO
 
 -- =============================================
@@ -88,7 +88,7 @@ GO
 -- and to detect tampering via checksum validation
 -- =============================================
 
-USE LibraryDb;
+USE [$(DB_NAME)];
 GO
 
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[__MigrationsHistory]') AND type = 'U')
@@ -116,8 +116,8 @@ PRINT '';
 PRINT '========================================';
 PRINT '✅ Database Initialization Complete!';
 PRINT '========================================';
-PRINT 'Database: LibraryDb';
-PRINT 'User: library_app_user';
+PRINT 'Database: $(DB_NAME)';
+PRINT 'User: $(APP_USER)';
 PRINT 'Migration tracking: __MigrationsHistory table ready';
 PRINT '========================================';
 GO

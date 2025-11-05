@@ -192,33 +192,49 @@ internal class Program
     }
 
     /// <summary>
-    /// Expands environment variables in connection strings (${VAR} syntax)
+    /// Expands environment variables in configuration values (${VAR} syntax)
     /// </summary>
     private static void ExpandConnectionStrings()
     {
         if (_configuration == null) return;
 
+        // Expand ConnectionStrings section
         var connectionStrings = _configuration.GetSection("ConnectionStrings");
         foreach (var conn in connectionStrings.GetChildren())
         {
-            var value = conn.Value;
-            if (string.IsNullOrEmpty(value)) continue;
+            ExpandConfigValue(conn);
+        }
 
-            // Replace ${VAR} with environment variable values
-            var expanded = System.Text.RegularExpressions.Regex.Replace(
-                value,
-                @"\$\{([^}]+)\}",
-                match =>
-                {
-                    var varName = match.Groups[1].Value;
-                    return Environment.GetEnvironmentVariable(varName) ?? match.Value;
-                });
+        // Expand Database section
+        var database = _configuration.GetSection("Database");
+        foreach (var dbConfig in database.GetChildren())
+        {
+            ExpandConfigValue(dbConfig);
+        }
+    }
 
-            // Update the configuration value
-            if (expanded != value)
+    /// <summary>
+    /// Expands environment variables in a single configuration value
+    /// </summary>
+    private static void ExpandConfigValue(IConfigurationSection configSection)
+    {
+        var value = configSection.Value;
+        if (string.IsNullOrEmpty(value)) return;
+
+        // Replace ${VAR} with environment variable values
+        var expanded = System.Text.RegularExpressions.Regex.Replace(
+            value,
+            @"\$\{([^}]+)\}",
+            match =>
             {
-                _configuration[conn.Path] = expanded;
-            }
+                var varName = match.Groups[1].Value;
+                return Environment.GetEnvironmentVariable(varName) ?? match.Value;
+            });
+
+        // Update the configuration value
+        if (expanded != value)
+        {
+            _configuration![configSection.Path] = expanded;
         }
     }
 
@@ -323,7 +339,8 @@ internal class Program
         if (_configuration == null)
         {
             Console.WriteLine("❌ Configuration not loaded - cannot run migrations!");
-            return;
+            Console.WriteLine("Application will exit.");
+            Environment.Exit(1);
         }
 
         try
@@ -333,16 +350,20 @@ internal class Program
 
             if (string.IsNullOrEmpty(adminConnectionString))
             {
-                Console.WriteLine("⚠️  No admin connection string configured - skipping migrations");
+                Console.WriteLine("❌ No admin connection string configured - cannot run migrations");
                 Console.WriteLine("   Set ConnectionStrings:SqlServerAdmin in appsettings.json or user secrets");
-                return;
+                Console.WriteLine("Application will exit.");
+                Environment.Exit(1);
             }
 
             // Get migrations path from configuration
             var migrationsPath = _configuration["Database:MigrationsPath"] ?? "../../../../migrations";
 
+            // Get database name from configuration (defaults to LibraryDb)
+            var databaseName = _configuration["Database:Name"] ?? "LibraryDb";
+
             // Create and run migration runner
-            var runner = new MigrationRunner(adminConnectionString, migrationsPath);
+            var runner = new MigrationRunner(adminConnectionString, migrationsPath, databaseName);
             var executedCount = await runner.RunMigrationsAsync();
 
             if (executedCount > 0)
@@ -352,9 +373,12 @@ internal class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ Migration error: {ex.Message}");
-            Console.WriteLine("⚠️  Application will continue, but database may be in an inconsistent state.");
             Console.WriteLine();
+            Console.WriteLine("❌ Migration failed!");
+            Console.WriteLine($"   Error: {ex.Message}");
+            Console.WriteLine();
+            Console.WriteLine("Application will exit.");
+            Environment.Exit(1);
         }
     }
 

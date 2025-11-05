@@ -20,11 +20,36 @@ public class MigrationRunner
 {
     private readonly string _connectionString;
     private readonly string _migrationsPath;
+    private readonly string _databaseName;
 
-    public MigrationRunner(string connectionString, string migrationsPath)
+    public MigrationRunner(string connectionString, string migrationsPath, string? databaseName = null)
     {
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+        if (string.IsNullOrEmpty(connectionString))
+            throw new ArgumentNullException(nameof(connectionString));
+
+        // Use provided database name or default to LibraryDb
+        _databaseName = databaseName ?? "LibraryDb";
+
+        // Ensure connection string specifies the target database
+        // Migration files use "USE <database>;" so we need to track migrations in the same database
+        _connectionString = EnsureDatabaseInConnectionString(connectionString, _databaseName);
         _migrationsPath = migrationsPath ?? throw new ArgumentNullException(nameof(migrationsPath));
+    }
+
+    /// <summary>
+    /// Ensures the connection string includes the specified database
+    /// </summary>
+    private static string EnsureDatabaseInConnectionString(string connectionString, string databaseName)
+    {
+        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
+
+        // If no database is specified, or it's master, set it to the target database
+        if (string.IsNullOrEmpty(builder.InitialCatalog) || builder.InitialCatalog.Equals("master", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.InitialCatalog = databaseName;
+        }
+
+        return builder.ConnectionString;
     }
 
     /// <summary>
@@ -41,7 +66,13 @@ public class MigrationRunner
 
         try
         {
-            // 1. Scan migration files from disk
+            // 1. Ensure database exists
+            await EnsureDatabaseExistsAsync();
+
+            // 2. Ensure migrations history table exists
+            await EnsureMigrationsHistoryTableExistsAsync();
+
+            // 3. Scan migration files from disk
             var allMigrations = ScanMigrationFiles();
             Console.WriteLine($"📂 Found {allMigrations.Count} migration files");
 
@@ -51,11 +82,11 @@ public class MigrationRunner
                 return 0;
             }
 
-            // 2. Get applied migrations from database
+            // 4. Get applied migrations from database
             var appliedMigrations = await GetAppliedMigrationsAsync();
             Console.WriteLine($"✅ Already applied: {appliedMigrations.Count} migrations");
 
-            // 3. Mark which migrations are already applied
+            // 5. Mark which migrations are already applied
             foreach (var migration in allMigrations)
             {
                 if (appliedMigrations.TryGetValue(migration.Version, out var applied))
@@ -67,10 +98,10 @@ public class MigrationRunner
                 }
             }
 
-            // 4. Validate checksums (detect tampering)
+            // 6. Validate checksums (detect tampering)
             await ValidateChecksums(allMigrations);
 
-            // 5. Get pending migrations
+            // 7. Get pending migrations
             var pendingMigrations = allMigrations.Where(m => !m.IsApplied).ToList();
 
             if (pendingMigrations.Count == 0)
@@ -83,7 +114,7 @@ public class MigrationRunner
             Console.WriteLine($"🆕 Pending migrations: {pendingMigrations.Count}");
             Console.WriteLine();
 
-            // 6. Execute each pending migration
+            // 8. Execute each pending migration
             var executedCount = 0;
             var totalStopwatch = Stopwatch.StartNew();
 
@@ -95,7 +126,7 @@ public class MigrationRunner
 
             totalStopwatch.Stop();
 
-            // 7. Summary
+            // 9. Summary
             Console.WriteLine();
             Console.WriteLine("========================================");
             Console.WriteLine($"✅ Migration Complete!");
@@ -169,6 +200,82 @@ public class MigrationRunner
 
         // Sort by version number
         return migrations.OrderBy(m => m.Version).ToList();
+    }
+
+    /// <summary>
+    /// Ensures the target database exists, creates it if it doesn't
+    /// </summary>
+    private async Task EnsureDatabaseExistsAsync()
+    {
+        // Use a connection string without database specified to connect to master
+        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(_connectionString);
+        builder.InitialCatalog = "master"; // Connect to master to check/create database
+
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+
+        // Check if database exists
+        await using var checkCmd = new SqlCommand(
+            "SELECT database_id FROM sys.databases WHERE name = @DatabaseName",
+            connection);
+        checkCmd.Parameters.AddWithValue("@DatabaseName", _databaseName);
+
+        var exists = await checkCmd.ExecuteScalarAsync();
+
+        if (exists == null)
+        {
+            Console.WriteLine($"📋 Creating database [{_databaseName}]...");
+
+            // Create the database
+            await using var createCmd = new SqlCommand(
+                $"CREATE DATABASE [{_databaseName}]; ALTER DATABASE [{_databaseName}] SET RECOVERY SIMPLE;",
+                connection);
+            await createCmd.ExecuteNonQueryAsync();
+
+            Console.WriteLine($"✅ Database [{_databaseName}] created");
+        }
+    }
+
+    /// <summary>
+    /// Ensures the __MigrationsHistory table exists in the database
+    /// </summary>
+    private async Task EnsureMigrationsHistoryTableExistsAsync()
+    {
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        // Check if migrations history table exists
+        var tableExists = false;
+        await using (var checkCmd = new SqlCommand(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '__MigrationsHistory'",
+            connection))
+        {
+            var result = await checkCmd.ExecuteScalarAsync();
+            tableExists = result != null;
+        }
+
+        if (!tableExists)
+        {
+            Console.WriteLine("📋 Creating migrations history table...");
+
+            var createTableSql = @"
+                CREATE TABLE [dbo].[__MigrationsHistory]
+                (
+                    [MigrationVersion] NVARCHAR(10) NOT NULL,
+                    [FileName] NVARCHAR(255) NOT NULL,
+                    [Checksum] NVARCHAR(64) NOT NULL,
+                    [AppliedAt] DATETIME2(7) NOT NULL,
+                    [ExecutionTimeMs] INT NOT NULL,
+
+                    CONSTRAINT [PK___MigrationsHistory] PRIMARY KEY CLUSTERED ([MigrationVersion] ASC)
+                );
+            ";
+
+            await using var createCmd = new SqlCommand(createTableSql, connection);
+            await createCmd.ExecuteNonQueryAsync();
+
+            Console.WriteLine("✅ Migrations history table created");
+        }
     }
 
     /// <summary>

@@ -11,6 +11,7 @@ services:
       - SA_PASSWORD=${SA_PASSWORD:-YourStrong@Passw0rd}
       - APP_USER=${APP_USER:-library_app_user}
       - APP_PASSWORD=${APP_PASSWORD:-LibraryApp@2024}
+      - DB_NAME=${DB_NAME:-LibraryDb}
       - MSSQL_PID=Developer
     ports:
       - "1453:1433"
@@ -20,11 +21,11 @@ services:
     networks:
       - dbdemo-network
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD:-YourStrong@Passw0rd}" -Q "SELECT 1" -C || exit 1
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD:-YourStrong@Passw0rd}" -Q "SELECT 1 FROM sys.databases WHERE name = '${DB_NAME:-LibraryDb}'" -C || exit 1
       interval: 10s
       timeout: 3s
       retries: 10
-      start_period: 10s
+      start_period: 30s
 
 volumes:
   sqlserver-data:
