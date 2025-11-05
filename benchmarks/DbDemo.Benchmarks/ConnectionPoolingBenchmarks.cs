@@ -65,7 +65,8 @@ public class ConnectionPoolingBenchmarks
         await connection.OpenAsync();
 
         await using var command = new SqlCommand("SELECT COUNT(*) FROM Books WHERE IsDeleted = 0", connection);
-        return (int)await command.ExecuteScalarAsync()!;
+        var result = await command.ExecuteScalarAsync();
+        return result != null ? (int)result : 0;
     }
 
     [Benchmark(Description = "Single query - Non-pooled")]
@@ -76,7 +77,8 @@ public class ConnectionPoolingBenchmarks
         await connection.OpenAsync();
 
         await using var command = new SqlCommand("SELECT COUNT(*) FROM Books WHERE IsDeleted = 0", connection);
-        return (int)await command.ExecuteScalarAsync()!;
+        var result = await command.ExecuteScalarAsync();
+        return result != null ? (int)result : 0;
     }
 
     // =====================================================================
@@ -95,7 +97,8 @@ public class ConnectionPoolingBenchmarks
             await connection.OpenAsync();
 
             await using var command = new SqlCommand("SELECT COUNT(*) FROM Books WHERE IsDeleted = 0", connection);
-            totalCount += (int)await command.ExecuteScalarAsync()!;
+            var result = await command.ExecuteScalarAsync();
+            totalCount += result != null ? (int)result : 0;
         }
 
         return totalCount;
@@ -113,7 +116,8 @@ public class ConnectionPoolingBenchmarks
             await connection.OpenAsync();
 
             await using var command = new SqlCommand("SELECT COUNT(*) FROM Books WHERE IsDeleted = 0", connection);
-            totalCount += (int)await command.ExecuteScalarAsync()!;
+            var result = await command.ExecuteScalarAsync();
+            totalCount += result != null ? (int)result : 0;
         }
 
         return totalCount;
@@ -152,8 +156,9 @@ public class ConnectionPoolingBenchmarks
         var directory = new DirectoryInfo(currentDirectory);
         while (directory != null)
         {
-            if (directory.GetFiles("*.sln").Any() ||
-                directory.GetDirectories("migrations").Any())
+            // Prioritize finding .sln file (actual repository root)
+            // Don't stop at migrations directory in bin folder
+            if (directory.GetFiles("*.sln").Any())
             {
                 return directory.FullName;
             }

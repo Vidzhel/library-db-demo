@@ -177,8 +177,9 @@ public class BulkInsertBenchmarks
         var directory = new DirectoryInfo(currentDirectory);
         while (directory != null)
         {
-            if (directory.GetFiles("*.sln").Any() ||
-                directory.GetDirectories("migrations").Any())
+            // Prioritize finding .sln file (actual repository root)
+            // Don't stop at migrations directory in bin folder
+            if (directory.GetFiles("*.sln").Any())
             {
                 return directory.FullName;
             }

@@ -1,3 +1,5 @@
+BenchmarkDotNet.Artifacts/
+
 # Build results
 bin/
 obj/
