@@ -36,9 +36,14 @@ echo "Dropping existing LibraryDb database if it exists..."
 echo "Creating LibraryDb database..."
 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $SA_PASSWORD -Q "CREATE DATABASE LibraryDb" -C
 
+# Set default application credentials if not provided
+APP_USER=${APP_USER:-library_app_user}
+APP_PASSWORD=${APP_PASSWORD:-LibraryApp@2024}
+
 # Run the initial schema migration
 echo "Running initial schema migration..."
-/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $SA_PASSWORD -d LibraryDb -i /opt/mssql-scripts/init.sql -C
+echo "Creating application user: $APP_USER"
+/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $SA_PASSWORD -d LibraryDb -i /opt/mssql-scripts/init.sql -v APP_USER="$APP_USER" -v APP_PASSWORD="$APP_PASSWORD" -C
 
 if [ $? -eq 0 ]; then
     echo "Database initialization completed successfully!"

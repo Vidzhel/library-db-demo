@@ -5,17 +5,16 @@
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <UserSecretsId>dbdemo-library-app-2024</UserSecretsId>
         <AssemblyName>DbDemo.ConsoleApp</AssemblyName>
         <RootNamespace>DbDemo.ConsoleApp</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
         <!-- Configuration System -->
+        <PackageReference Include="DotNetEnv" Version="3.1.1" />
         <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
         <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.10" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.10" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="9.0.10" />
         <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.10" />
     </ItemGroup>
 

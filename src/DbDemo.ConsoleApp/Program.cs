@@ -137,10 +137,10 @@ internal class Program
 
     /// <summary>
     /// Loads configuration from multiple sources in priority order:
-    /// 1. appsettings.json (base configuration)
-    /// 2. appsettings.{Environment}.json (environment-specific)
-    /// 3. User Secrets (development passwords - never committed)
-    /// 4. Environment Variables (production passwords)
+    /// 1. .env file (loads into environment variables - SINGLE SOURCE OF TRUTH for secrets)
+    /// 2. appsettings.json (base configuration with placeholders)
+    /// 3. appsettings.{Environment}.json (environment-specific settings)
+    /// 4. Environment Variables (for production/CI environments)
     /// </summary>
     private static void LoadConfiguration()
     {
@@ -170,15 +170,56 @@ internal class Program
             }
         }
 
+        // Load .env file from repository root (loads variables into environment)
+        var envFile = Path.Combine(basePath, ".env");
+        if (File.Exists(envFile))
+        {
+            DotNetEnv.Env.Load(envFile);
+            Console.WriteLine($"✅ Loaded environment variables from .env file");
+        }
+
         _configuration = new ConfigurationBuilder()
             .SetBasePath(basePath)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: true)
-            .AddUserSecrets<Program>(optional: true)  // Development secrets (not committed to git)
-            .AddEnvironmentVariables()                 // Production secrets
+            .AddEnvironmentVariables()  // Environment variables (includes those loaded from .env)
             .Build();
 
+        // Expand environment variables in connection strings
+        ExpandConnectionStrings();
+
         Console.WriteLine($"✅ Configuration loaded (Environment: {environment})");
+    }
+
+    /// <summary>
+    /// Expands environment variables in connection strings (${VAR} syntax)
+    /// </summary>
+    private static void ExpandConnectionStrings()
+    {
+        if (_configuration == null) return;
+
+        var connectionStrings = _configuration.GetSection("ConnectionStrings");
+        foreach (var conn in connectionStrings.GetChildren())
+        {
+            var value = conn.Value;
+            if (string.IsNullOrEmpty(value)) continue;
+
+            // Replace ${VAR} with environment variable values
+            var expanded = System.Text.RegularExpressions.Regex.Replace(
+                value,
+                @"\$\{([^}]+)\}",
+                match =>
+                {
+                    var varName = match.Groups[1].Value;
+                    return Environment.GetEnvironmentVariable(varName) ?? match.Value;
+                });
+
+            // Update the configuration value
+            if (expanded != value)
+            {
+                _configuration[conn.Path] = expanded;
+            }
+        }
     }
 
     /// <summary>

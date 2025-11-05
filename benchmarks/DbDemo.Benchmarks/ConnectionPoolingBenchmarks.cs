@@ -24,11 +24,24 @@ public class ConnectionPoolingBenchmarks
     [GlobalSetup]
     public void GlobalSetup()
     {
+        // Find and load .env file from repository root
+        var currentDirectory = Directory.GetCurrentDirectory();
+        var repoRoot = FindProjectRoot(currentDirectory);
+        var envFile = Path.Combine(repoRoot, ".env");
+        if (File.Exists(envFile))
+        {
+            DotNetEnv.Env.Load(envFile);
+        }
+
         // Load configuration
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(currentDirectory)
             .AddJsonFile("appsettings.json")
+            .AddEnvironmentVariables()
             .Build();
+
+        // Expand environment variables in connection strings
+        ExpandConnectionStrings(configuration);
 
         var baseConnectionString = configuration.GetConnectionString("LibraryDb")
             ?? throw new InvalidOperationException("Connection string not found");
@@ -131,6 +144,48 @@ public class ConnectionPoolingBenchmarks
             await using var connection = new SqlConnection(_nonPooledConnectionString);
             await connection.OpenAsync();
             // Connection automatically closed when disposed
+        }
+    }
+
+    private static string FindProjectRoot(string currentDirectory)
+    {
+        var directory = new DirectoryInfo(currentDirectory);
+        while (directory != null)
+        {
+            if (directory.GetFiles("*.sln").Any() ||
+                directory.GetDirectories("migrations").Any())
+            {
+                return directory.FullName;
+            }
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not find project root (no .sln file found)");
+    }
+
+    private static void ExpandConnectionStrings(IConfiguration configuration)
+    {
+        var connectionStrings = configuration.GetSection("ConnectionStrings");
+        foreach (var conn in connectionStrings.GetChildren())
+        {
+            var value = conn.Value;
+            if (string.IsNullOrEmpty(value)) continue;
+
+            // Replace ${VAR} with environment variable values
+            var expanded = System.Text.RegularExpressions.Regex.Replace(
+                value,
+                @"\$\{([^}]+)\}",
+                match =>
+                {
+                    var varName = match.Groups[1].Value;
+                    return Environment.GetEnvironmentVariable(varName) ?? match.Value;
+                });
+
+            // Update the configuration value
+            if (expanded != value)
+            {
+                configuration[conn.Path] = expanded;
+            }
         }
     }
 }

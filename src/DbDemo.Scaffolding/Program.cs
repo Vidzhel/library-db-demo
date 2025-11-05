@@ -8,13 +8,27 @@ Console.WriteLine();
 
 try
 {
+    var currentDirectory = Directory.GetCurrentDirectory();
+
+    // Find and load .env file from repository root
+    var repoRoot = FindProjectRoot(currentDirectory);
+    var envFile = Path.Combine(repoRoot, ".env");
+    if (File.Exists(envFile))
+    {
+        DotNetEnv.Env.Load(envFile);
+        Console.WriteLine($"✅ Loaded environment variables from .env file");
+    }
+
     // Load configuration
     var configuration = new ConfigurationBuilder()
-        .SetBasePath(Directory.GetCurrentDirectory())
+        .SetBasePath(currentDirectory)
         .AddJsonFile("appsettings.json", optional: false)
         .AddJsonFile("appsettings.Development.json", optional: true)
-        .AddUserSecrets<Program>(optional: true)
+        .AddEnvironmentVariables()
         .Build();
+
+    // Expand environment variables in connection strings
+    ExpandConnectionStrings(configuration);
 
     var connectionString = configuration.GetConnectionString("LibraryDb");
     if (string.IsNullOrWhiteSpace(connectionString))
@@ -28,9 +42,6 @@ try
 
     Console.WriteLine($"Found {tables.Count} tables with {tables.Sum(t => t.Columns.Count)} total columns");
     Console.WriteLine();
-
-    // Determine output directory (relative to project root)
-    var currentDirectory = Directory.GetCurrentDirectory();
     var projectRoot = FindProjectRoot(currentDirectory);
     var outputDirectory = Path.Combine(projectRoot, "src", "DbDemo.Infrastructure.SqlKata", "Generated");
 
@@ -82,4 +93,30 @@ static string FindProjectRoot(string currentDirectory)
     }
 
     throw new InvalidOperationException("Could not find project root (no .sln file found)");
+}
+
+static void ExpandConnectionStrings(IConfiguration configuration)
+{
+    var connectionStrings = configuration.GetSection("ConnectionStrings");
+    foreach (var conn in connectionStrings.GetChildren())
+    {
+        var value = conn.Value;
+        if (string.IsNullOrEmpty(value)) continue;
+
+        // Replace ${VAR} with environment variable values
+        var expanded = System.Text.RegularExpressions.Regex.Replace(
+            value,
+            @"\$\{([^}]+)\}",
+            match =>
+            {
+                var varName = match.Groups[1].Value;
+                return Environment.GetEnvironmentVariable(varName) ?? match.Value;
+            });
+
+        // Update the configuration value
+        if (expanded != value)
+        {
+            configuration[conn.Path] = expanded;
+        }
+    }
 }

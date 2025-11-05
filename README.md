@@ -45,9 +45,20 @@ This project is designed as a teaching tool for students learning database progr
 
 ### First-Time Setup
 
-Start SQL Server:
+1. **Configure secrets** (IMPORTANT - do this first!):
 ```bash
-cp .env.example .env  # Edit with your SA password
+cp .env.example .env  # Copy the template
+# Edit .env with your own passwords (never commit this file!)
+```
+
+The `.env` file is your **single source of truth** for all secrets. It contains:
+- Database connection settings (host, port)
+- SA (admin) password for SQL Server
+- Application user credentials
+- Database name
+
+2. **Start SQL Server**:
+```bash
 docker-compose -f .meta/docker-compose.yml up --build -d
 ```
 

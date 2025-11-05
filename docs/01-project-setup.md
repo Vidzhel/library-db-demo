@@ -4,7 +4,7 @@
 
 - How to structure a .NET console application project
 - Managing NuGet packages with PackageReference
-- Configuration management in .NET (appsettings.json, User Secrets, environment variables)
+- Configuration management in .NET (appsettings.json, .env files, environment variables)
 - Secure password storage strategies (never commit secrets!)
 - The .NET configuration hierarchy and override system
 - Connection string management for multiple environments
@@ -27,29 +27,32 @@ Proper project setup and configuration management are **critical foundations** f
 
 #### Configuration Sources (Lowest to Highest Priority)
 
-1. **appsettings.json** - Base configuration for all environments
+1. **appsettings.json** - Base configuration with placeholders for secrets
 2. **appsettings.{Environment}.json** - Environment-specific overrides
-3. **User Secrets** - Developer-specific secrets (Development only)
-4. **Environment Variables** - System-level configuration (Production)
+3. **.env file** - Local secrets (loaded into environment variables) - **SINGLE SOURCE OF TRUTH**
+4. **Environment Variables** - System-level configuration (can override .env in production)
 5. **Command-line arguments** - Runtime overrides (not used in this project)
 
-**How it works**: Later sources override earlier ones. For example, a password in User Secrets will override the same key in appsettings.json.
+**How it works**: The .env file is loaded first and injects secrets into environment variables. The appsettings.json files use `${VAR}` placeholder syntax which gets expanded with values from environment variables.
 
 ### Why This Layered Approach?
 
 ```
 appsettings.json (committed to Git)
-└─ Contains: Server names, timeouts, non-sensitive defaults
-   ❌ NEVER contains: Passwords, API keys, connection strings with credentials
+└─ Contains: Configuration structure with ${VAR} placeholders
+   ❌ NEVER contains: Actual passwords, API keys, credentials
+   ✅ Contains: Server=${DB_HOST},${DB_PORT};Password=${APP_PASSWORD}
 
-User Secrets (local developer machine only)
-└─ Contains: Development passwords, local database credentials
-   ❌ NEVER committed to Git
+.env file (local developer machine only)
+└─ Contains: All secrets - DB passwords, API keys, credentials
+   ❌ NEVER committed to Git (in .gitignore)
    ✅ Each developer has their own
+   ✅ SINGLE SOURCE OF TRUTH for secrets
+   ✅ Simple key=value format (DB_HOST=localhost)
 
 Environment Variables (production servers)
-└─ Contains: Production passwords, API keys
-   ✅ Set by deployment system (Azure, AWS, Docker, etc.)
+└─ Contains: Production secrets
+   ✅ Set by deployment system (Azure, AWS, Docker, Kubernetes)
    ❌ Not in source code
 ```
 
@@ -61,18 +64,34 @@ Environment Variables (production servers)
 | `appsettings.Development.json` | Development-specific overrides (like verbose logging) | ✅ Yes | ❌ No |
 | `appsettings.Production.json` | Production-specific overrides | ✅ Yes | ❌ No |
 
-### User Secrets
+### .env Files (Single Source of Truth)
 
-**User Secrets** is a .NET feature that stores secrets in a separate location outside your project folder:
+This project uses **.env files** as the **single source of truth** for all secrets:
 
-**Location** (not in your project!):
-- **Windows**: `%APPDATA%\Microsoft\UserSecrets\{UserSecretsId}\secrets.json`
-- **Mac/Linux**: `~/.microsoft/usersecrets/{UserSecretsId}/secrets.json`
+**Location**: `.env` file in the repository root (next to `DbDemo.sln`)
+
+**Format**: Simple key=value pairs
+```bash
+DB_HOST=localhost
+DB_PORT=1453
+SA_PASSWORD=YourStrong@Passw0rd
+APP_USER=library_app_user
+APP_PASSWORD=LibraryApp@2024
+```
 
 **How it works**:
-1. Your `.csproj` contains a `<UserSecretsId>` (just a GUID)
-2. Secrets are stored in the location above (never in source control)
-3. The configuration system automatically loads them in Development mode
+1. Copy `.env.example` to `.env` on first setup
+2. Edit `.env` with your actual passwords
+3. The `.env` file is in `.gitignore` (never committed)
+4. DotNetEnv package loads these into environment variables at startup
+5. Connection strings in appsettings.json use `${VAR}` syntax to reference them
+
+**Why .env instead of User Secrets?**
+- ✅ **Simpler**: Just edit a text file, no special commands needed
+- ✅ **Universal**: Works for both Docker and .NET applications
+- ✅ **Single Source**: One file contains all secrets (not split between multiple systems)
+- ✅ **Portable**: Standard format used across many languages/frameworks
+- ✅ **Visible**: Easy to see all your settings in one place
 
 ### Connection Strings
 
@@ -138,36 +157,49 @@ dotnet restore
 - `Microsoft.Data.SqlClient` - ADO.NET provider for SQL Server
 - `Microsoft.Extensions.Configuration` - Configuration system
 - `Microsoft.Extensions.Configuration.Json` - JSON configuration provider
-- `Microsoft.Extensions.Configuration.UserSecrets` - User secrets support
 - `Microsoft.Extensions.Configuration.EnvironmentVariables` - Environment variable support
+- `DotNetEnv` - .env file loader
 
-### Step 2: Configure User Secrets
+### Step 2: Configure Secrets in .env File
 
-**Initialize User Secrets** (if not already done):
-
-The `.csproj` already contains `<UserSecretsId>dbdemo-library-app-2024</UserSecretsId>`, so secrets are ready to use.
-
-**Set your passwords**:
+**Create your .env file** (if not already done):
 
 ```bash
-# Admin (SA) connection string
-dotnet user-secrets set "ConnectionStrings:SqlServerAdmin" "Server=localhost,1453;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;"
-
-# App user connection string
-dotnet user-secrets set "ConnectionStrings:LibraryDb" "Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=LibraryApp@2024!;TrustServerCertificate=True;"
+# From repository root
+cp .env.example .env
 ```
 
-**Verify secrets were saved**:
+**Edit your passwords** in the `.env` file with your text editor:
 
 ```bash
-dotnet user-secrets list
+# Database Configuration
+
+# SQL Server Connection Settings
+DB_HOST=localhost
+DB_PORT=1453
+
+# SQL Server SA (Admin) User - Used for migrations and setup
+SA_USER=sa
+SA_PASSWORD=YourStrong@Passw0rd
+
+# Library Database Settings
+DB_NAME=LibraryDb
+
+# Application User - Used by the application for normal operations
+APP_USER=library_app_user
+APP_PASSWORD=LibraryApp@2024
 ```
 
-Expected output:
+**Important**: Change the passwords from the defaults! The `.env` file is in `.gitignore` and will never be committed.
+
+**Verify your .env file**:
+
+```bash
+cat .env  # Linux/Mac
+type .env  # Windows CMD
 ```
-ConnectionStrings:SqlServerAdmin = Server=localhost,1453;User Id=sa;Password=********...
-ConnectionStrings:LibraryDb = Server=localhost,1453;Database=LibraryDb;User Id=library_app_user;Password=********...
-```
+
+You should see your configured values (be careful - this shows actual passwords!)
 
 ### Step 3: Run the Application
 
@@ -274,7 +306,7 @@ This prevents accidentally committing secrets.
 }
 ```
 
-**Notice**: Passwords are intentionally missing! They come from User Secrets or Environment Variables.
+**Notice**: Passwords use `${VAR}` placeholders! Actual values come from the .env file (loaded into environment variables).
 
 ### Reading Configuration in Code
 
@@ -325,17 +357,19 @@ dotnet user-secrets list --verbose
 
 ## ⚠️ Common Pitfalls
 
-### 1. Forgetting to Set User Secrets
+### 1. Forgetting to Create .env File
 
-**Error**: "Connection string has no password"
+**Error**: "Connection string has no password" or variables show as `${VAR}`
 
-**Solution**: Run `dotnet user-secrets set` commands from Step 2
+**Solution**:
+1. Copy `.env.example` to `.env`
+2. Edit `.env` with your actual passwords
 
-### 2. Wrong Directory for User Secrets Commands
+### 2. .env File in Wrong Location
 
-**Error**: "Could not find UserSecretsId"
+**Error**: Variables not being loaded
 
-**Solution**: Make sure you're in the `DbDemo/DbDemo/` folder (where `.csproj` is), not the solution root
+**Solution**: Make sure `.env` is in the repository root (next to `DbDemo.sln`), not in project folders
 
 ### 3. Committing Secrets to Git
 
@@ -387,7 +421,7 @@ Before moving to the next commit, ensure:
 ### Official Microsoft Documentation
 
 - [Configuration in .NET](https://learn.microsoft.com/en-us/dotnet/core/extensions/configuration) - Complete guide
-- [User Secrets in Development](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) - How to use user secrets
+- [.env Files Best Practices](https://www.dotenv.org/docs/) - How to use .env files
 - [Connection Strings](https://learn.microsoft.com/en-us/dotnet/framework/data/adonet/connection-strings) - Format and best practices
 - [NuGet Package Management](https://learn.microsoft.com/en-us/nuget/consume-packages/overview-and-workflow) - How packages work
 
@@ -407,7 +441,7 @@ Before moving to the next commit, ensure:
 ### Video Tutorials
 
 - [Configuration in .NET - IAmTimCorey](https://www.youtube.com/watch?v=GAOCe-2nXqc)
-- [User Secrets - dotnet](https://www.youtube.com/watch?v=PkLLP2tcd28)
+- [Environment Variables Best Practices](https://12factor.net/config) - The Twelve-Factor App methodology
 
 ## ❓ Discussion Questions
 
@@ -427,9 +461,9 @@ Before moving to the next commit, ensure:
    - Research: Azure Key Vault, AWS Secrets Manager, HashiCorp Vault
    - How do managed identities eliminate passwords entirely?
 
-5. **What's the difference between User Secrets and Environment Variables?**
-   - When would you use each one?
-   - Can you use both at the same time?
+5. **What's the difference between .env files and Environment Variables?**
+   - When would you use .env files vs system environment variables?
+   - How does .env work with Docker vs .NET applications?
 
 ## 🎯 Next Steps
 

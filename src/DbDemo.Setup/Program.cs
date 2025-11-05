@@ -10,13 +10,27 @@ Console.WriteLine();
 
 try
 {
+    var currentDirectory = Directory.GetCurrentDirectory();
+
+    // Find and load .env file from repository root
+    var repoRoot = FindProjectRoot(currentDirectory);
+    var envFile = Path.Combine(repoRoot, ".env");
+    if (File.Exists(envFile))
+    {
+        DotNetEnv.Env.Load(envFile);
+        Console.WriteLine($"✅ Loaded environment variables from .env file");
+    }
+
     // Load configuration
     var configuration = new ConfigurationBuilder()
-        .SetBasePath(Directory.GetCurrentDirectory())
+        .SetBasePath(currentDirectory)
         .AddJsonFile("appsettings.json", optional: false)
         .AddJsonFile("appsettings.Development.json", optional: true)
-        .AddUserSecrets<Program>(optional: true)
+        .AddEnvironmentVariables()
         .Build();
+
+    // Expand environment variables in connection strings
+    ExpandConnectionStrings(configuration);
 
     var adminConnectionString = configuration.GetConnectionString("SqlServerAdmin");
     var appConnectionString = configuration.GetConnectionString("LibraryDb");
@@ -32,8 +46,6 @@ try
     Console.WriteLine("Step 1: Running Database Migrations");
     Console.WriteLine("═══════════════════════════════════════════════════════════");
     Console.WriteLine();
-
-    var currentDirectory = Directory.GetCurrentDirectory();
     var migrationsPath = Path.Combine(currentDirectory, "migrations");
 
     if (!Directory.Exists(migrationsPath))
@@ -152,4 +164,30 @@ static string FindProjectRoot(string currentDirectory)
     }
 
     throw new InvalidOperationException("Could not find project root (no .sln file found)");
+}
+
+static void ExpandConnectionStrings(IConfiguration configuration)
+{
+    var connectionStrings = configuration.GetSection("ConnectionStrings");
+    foreach (var conn in connectionStrings.GetChildren())
+    {
+        var value = conn.Value;
+        if (string.IsNullOrEmpty(value)) continue;
+
+        // Replace ${VAR} with environment variable values
+        var expanded = System.Text.RegularExpressions.Regex.Replace(
+            value,
+            @"\$\{([^}]+)\}",
+            match =>
+            {
+                var varName = match.Groups[1].Value;
+                return Environment.GetEnvironmentVariable(varName) ?? match.Value;
+            });
+
+        // Update the configuration value
+        if (expanded != value)
+        {
+            configuration[conn.Path] = expanded;
+        }
+    }
 }

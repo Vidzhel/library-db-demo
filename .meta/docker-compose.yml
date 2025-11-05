@@ -9,6 +9,8 @@ services:
     environment:
       - ACCEPT_EULA=Y
       - SA_PASSWORD=${SA_PASSWORD:-YourStrong@Passw0rd}
+      - APP_USER=${APP_USER:-library_app_user}
+      - APP_PASSWORD=${APP_PASSWORD:-LibraryApp@2024}
       - MSSQL_PID=Developer
     ports:
       - "1453:1433"
