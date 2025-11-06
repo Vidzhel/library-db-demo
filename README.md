@@ -83,7 +83,9 @@ dotnet run -p src/DbDemo.WebApi/
 ```
 
 ```bash
-cd src/DbDemo.Frontend/ && npm run dev
+cd src/DbDemo.Frontend/ 
+npm ci
+npm run dev
 ```
 
 Open http://localhost:5173/ for the UI.
