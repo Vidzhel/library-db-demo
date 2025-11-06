@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e  # Exit on error
 
+# Disable output buffering so logs appear immediately in background execution
+export PYTHONUNBUFFERED=1
+exec > >(stdbuf -oL cat) 2>&1
+
 # Wait for SQL Server to start up by ensuring that calling SQLCMD does not return an error code
 # This checks that all databases are in an "online" state (state = 0)
 # https://docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-databases-transact-sql
@@ -31,16 +35,28 @@ ERRCODE=1
 i=0
 
 # Wait up to 200 seconds for SQL Server to be ready (increased from 120)
-while [[ $DBSTATUS -ne 0 ]] && [[ $i -lt 200 ]] && [[ $ERRCODE -ne 0 ]]; do
+while [[ $i -lt 200 ]]; do
 	i=$((i+1))
 
 	# Try to connect and check database status
-	DBSTATUS=$(/opt/mssql-tools18/bin/sqlcmd -h -1 -t 1 -U sa -P "$SA_PASSWORD" -Q "SET NOCOUNT ON; SELECT SUM(state) FROM sys.databases" -C 2>&1)
+	# Capture only stdout (the result), let stderr go to the logs
+	DBSTATUS=$(/opt/mssql-tools18/bin/sqlcmd -h -1 -t 1 -U sa -P "$SA_PASSWORD" -Q "SET NOCOUNT ON; SELECT SUM(state) FROM sys.databases" -C 2>/dev/null | tr -d '[:space:]')
 	ERRCODE=$?
 
-	# Show progress every 10 seconds
+	# Show progress every 10 seconds with more detail
 	if [[ $((i % 10)) -eq 0 ]]; then
-		echo "Still waiting... ($i seconds elapsed)"
+		echo "Still waiting... ($i seconds elapsed, ERRCODE=$ERRCODE, DBSTATUS='$DBSTATUS')"
+	fi
+
+	# Show first attempt details
+	if [[ $i -eq 1 ]]; then
+		echo "First connection attempt: ERRCODE=$ERRCODE, DBSTATUS='$DBSTATUS'"
+	fi
+
+	# Check if both connection succeeded AND all databases are online
+	if [[ $ERRCODE -eq 0 ]] && [[ "$DBSTATUS" == "0" ]]; then
+		echo "✓ SQL Server is ready! (took $i seconds)"
+		break
 	fi
 
 	# If we get a login error, show it
@@ -52,7 +68,7 @@ while [[ $DBSTATUS -ne 0 ]] && [[ $i -lt 200 ]] && [[ $ERRCODE -ne 0 ]]; do
 	sleep 1
 done
 
-if [[ $DBSTATUS -ne 0 ]] || [[ $ERRCODE -ne 0 ]]; then
+if [[ $ERRCODE -ne 0 ]] || [[ "$DBSTATUS" != "0" ]]; then
 	echo ""
 	echo "========================================"
 	echo "ERROR: SQL Server failed to start!"
@@ -68,8 +84,6 @@ if [[ $DBSTATUS -ne 0 ]] || [[ $ERRCODE -ne 0 ]]; then
 	echo "========================================"
 	exit 1
 fi
-
-echo "✓ SQL Server started successfully! (took $i seconds)"
 
 # Drop the database if it exists (for clean initialization)
 echo ""
