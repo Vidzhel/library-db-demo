@@ -62,7 +62,7 @@ The `.env` file is your **single source of truth** for all secrets. It contains:
 docker-compose -f .meta/docker-compose.yml up --build -d
 ```
 
-### Running the Application
+### Running the Console Application
 
 After first-time setup, simply run:
 
@@ -74,6 +74,24 @@ The application will:
 1. Connect to the database
 2. Show an interactive menu with demos
 3. Allow you to explore various ADO.NET features
+
+### Running the Web Application
+
+
+```bash
+dotnet run -p src/DbDemo.WebApi/
+```
+
+```bash
+cd src/DbDemo.Frontend/ && npm run dev
+```
+
+Open http://localhost:5173/ for the UI.
+![web ui](docs/assets/web_ui.png)
+
+Open http://localhost:5000/ for the API documentation.
+
+![swagger ui](docs/assets/swagger_ui.png)
 
 ### When to Re-run Setup
 
